@@ -1,8 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt_exp;
+import 'package:http/io_client.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
+
+import '../utils/metadata_text_fixer.dart';
+import 'playlist_fetcher.dart';
 import 'storage_service.dart';
 
 class YoutubePreview {
@@ -14,7 +20,7 @@ class YoutubePreview {
   final String thumbnailUrl;
   final int trackCount;
 
-  YoutubePreview({
+  const YoutubePreview({
     required this.isPlaylist,
     required this.id,
     required this.title,
@@ -24,323 +30,536 @@ class YoutubePreview {
     this.trackCount = 1,
   });
 
-  String get formattedDuration {
-    if (duration == null) return '';
-    final minutes = duration!.inMinutes;
-    final seconds = duration!.inSeconds.remainder(60);
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  String get formattedDuration => duration == null
+      ? ''
+      : '${duration!.inMinutes}:${duration!.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+}
+
+/// Network boundary: tests exercise the same queue without contacting YouTube.
+class YoutubeAudio {
+  final Stream<List<int>> bytes;
+  final int size;
+  final String extension;
+  final void Function() close;
+  const YoutubeAudio({
+    required this.bytes,
+    required this.size,
+    required this.extension,
+    required this.close,
+  });
+}
+
+class YoutubeBackend {
+  yt.YoutubeExplode? _active;
+
+  http.Client? _playlistClient;
+  http.Client? _audioClient;
+
+  Future<PlaylistOverview> playlist(String id) async {
+    final client = http.Client();
+    _playlistClient = client;
+    try {
+      return await PlaylistFetcher.fetchOverview(id, client: client);
+    } finally {
+      client.close();
+      if (identical(_playlistClient, client)) _playlistClient = null;
+    }
+  }
+
+  yt.YoutubeExplode _client() => yt.YoutubeExplode(
+    httpClient: yt.YoutubeHttpClient(
+      IOClient(HttpClient()..connectionTimeout = const Duration(seconds: 15)),
+    ),
+  );
+
+  Future<YoutubePreview> video(String id) async {
+    final client = _client();
+    _active = client;
+    try {
+      final video = await client.videos
+          .get(id)
+          .timeout(const Duration(seconds: 25));
+      return YoutubePreview(
+        isPlaylist: false,
+        id: id,
+        title: video.title,
+        author: video.author,
+        duration: video.duration,
+        thumbnailUrl: video.thumbnails.highResUrl,
+      );
+    } finally {
+      client.close();
+      if (identical(_active, client)) _active = null;
+    }
+  }
+
+  Future<YoutubeAudio> audio(String id, int attempt) async {
+    final client = IOClient(
+      HttpClient()..connectionTimeout = const Duration(seconds: 15),
+    );
+    _audioClient = client;
+    const agent =
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15';
+    try {
+      final page = await client
+          .get(
+            Uri.https('www.youtube.com', '/watch', {'v': id}),
+            headers: {'user-agent': agent},
+          )
+          .timeout(const Duration(seconds: 20));
+      if (page.statusCode != 200) {
+        throw HttpException('YouTube: HTTP ${page.statusCode}');
+      }
+      final visitor = RegExp(r'"VISITOR_DATA"\s*:\s*"([^"]+)"')
+          .firstMatch(page.body)
+          ?.group(1);
+      if (visitor == null) {
+        throw StateError('No se encontró el contexto de visitante de YouTube.');
+      }
+      final headers = <String, String>{
+        'user-agent': agent,
+        'content-type': 'application/json',
+        'x-youtube-client-name': '101',
+        'x-youtube-client-version': '1.02',
+        'x-goog-visitor-id': visitor,
+        'origin': 'https://www.youtube.com',
+      };
+      final cookies = page.headers['set-cookie'];
+      if (cookies != null) {
+        headers['cookie'] = cookies
+            .split(RegExp(r',(?=\s*[^;,= ]+=)'))
+            .map((cookie) => cookie.split(';').first.trim())
+            .join('; ');
+      }
+      final response = await client
+          .post(
+            Uri.https('www.youtube.com', '/youtubei/v1/player', {
+              'prettyPrint': 'false',
+            }),
+            headers: headers,
+            body: jsonEncode({
+              'context': {
+                'client': {
+                  'clientName': 'VISIONOS',
+                  'clientVersion': '1.02',
+                  'deviceMake': 'Apple',
+                  'deviceModel': 'RealityDevice17,1',
+                  'userAgent': agent,
+                  'osName': 'visionOS',
+                  'osVersion': '26.5.23O471',
+                  'hl': 'en',
+                  'gl': 'US',
+                  'visitorData': visitor,
+                },
+              },
+              'videoId': id,
+              'contentCheckOk': true,
+              'racyCheckOk': true,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        throw HttpException('YouTube player: HTTP ${response.statusCode}');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final status = data['playabilityStatus'] as Map<String, dynamic>?;
+      if (status?['status'] != 'OK') {
+        throw StateError(status?['reason'] ?? 'Audio no disponible');
+      }
+      final streaming = data['streamingData'] as Map<String, dynamic>?;
+      final formats = (streaming?['adaptiveFormats'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .where(
+            (f) =>
+                f['url'] is String &&
+                (f['mimeType'].toString().startsWith('audio/mp4') ||
+                    f['mimeType'].toString().startsWith('audio/webm')),
+          )
+          .toList();
+      if (formats.isEmpty) {
+        throw StateError('YouTube no proporcionó audio directo.');
+      }
+      formats.sort((a, b) {
+        final aacA = a['mimeType'].toString().startsWith('audio/mp4');
+        final aacB = b['mimeType'].toString().startsWith('audio/mp4');
+        if (aacA != aacB) return aacA ? -1 : 1;
+        return ((b['bitrate'] as num?) ?? 0).compareTo(
+          (a['bitrate'] as num?) ?? 0,
+        );
+      });
+      final audio = formats.first;
+      final size = int.tryParse(audio['contentLength'].toString()) ?? 0;
+      if (size <= 0) throw StateError('No se conoce el tamaño del audio.');
+      return YoutubeAudio(
+        bytes: _audioChunks(
+          client,
+          Uri.parse(audio['url'] as String),
+          size,
+          agent,
+        ),
+        size: size,
+        extension: audio['mimeType'].toString().startsWith('audio/mp4')
+            ? 'm4a'
+            : 'webm',
+        close: () {
+          client.close();
+          if (identical(_audioClient, client)) _audioClient = null;
+        },
+      );
+    } catch (_) {
+      client.close();
+      if (identical(_audioClient, client)) _audioClient = null;
+      rethrow;
+    }
+  }
+
+  // Bounded requests avoid throttled full-file streams and validate every chunk.
+  Stream<List<int>> _audioChunks(
+    http.Client client,
+    Uri url,
+    int size,
+    String agent,
+  ) async* {
+    const chunkSize = 1024 * 1024;
+    for (var start = 0; start < size; start += chunkSize) {
+      final end = (start + chunkSize - 1).clamp(0, size - 1);
+      final ranged = url.replace(
+        queryParameters: {...url.queryParameters, 'range': '$start-$end'},
+      );
+      final response = await client
+          .send(http.Request('GET', ranged)..headers['user-agent'] = agent)
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200 && response.statusCode != 206) {
+        throw HttpException('Audio HTTP ${response.statusCode}');
+      }
+      var received = 0;
+      await for (final bytes in response.stream.timeout(
+        const Duration(seconds: 20),
+      )) {
+        received += bytes.length;
+        if (received > end - start + 1) {
+          throw StateError('YouTube ignoró el rango solicitado.');
+        }
+        yield bytes;
+      }
+      if (received != end - start + 1) {
+        throw StateError('Fragmento de audio incompleto.');
+      }
+    }
+  }
+
+  void cancel() {
+    _active?.close();
+    _playlistClient?.close();
+    _audioClient?.close();
   }
 }
 
 class YoutubeDownloadService extends ChangeNotifier {
-  final yt_exp.YoutubeExplode _yt = yt_exp.YoutubeExplode();
+  final YoutubeBackend _backend;
+  YoutubeDownloadService({YoutubeBackend? backend})
+    : _backend = backend ?? YoutubeBackend();
 
-  bool _isAnalyzing = false;
-  bool _isDownloading = false;
-  double _currentProgress = 0.0;
+  bool _isAnalyzing = false, _isDownloading = false, _cancelRequested = false;
+  bool _disposed = false;
+  int _generation = 0;
+  double _currentProgress = 0;
   String _statusMessage = '';
+  String? _lastDownloadError;
   YoutubePreview? _preview;
-  bool _cancelRequested = false;
+  List<PlaylistTrack> _tracks = [];
+  int _completedTracks = 0, _totalTracks = 0, _failedTracks = 0;
+  String? _currentTrackTitle;
 
   bool get isAnalyzing => _isAnalyzing;
   bool get isDownloading => _isDownloading;
   double get currentProgress => _currentProgress;
   String get statusMessage => _statusMessage;
   YoutubePreview? get preview => _preview;
+  int get completedTracks => _completedTracks;
+  int get totalTracks => _totalTracks;
+  int get failedTracks => _failedTracks;
+  String? get currentTrackTitle => _currentTrackTitle;
+
+  void _emit() {
+    if (!_disposed) notifyListeners();
+  }
 
   void clearPreview() {
+    if (_isDownloading) return;
+    _generation++;
+    _backend.cancel();
+    _isAnalyzing = false;
     _preview = null;
+    _tracks = [];
     _statusMessage = '';
-    _currentProgress = 0.0;
-    notifyListeners();
+    _currentProgress = 0;
+    _completedTracks = _totalTracks = _failedTracks = 0;
+    _emit();
   }
 
   void cancel() {
+    if (!_isDownloading) return;
     _cancelRequested = true;
-    _isDownloading = false;
-    _statusMessage = 'Descarga cancelada.';
-    notifyListeners();
+    _backend.cancel();
+    _statusMessage = 'Cancelando descarga…';
+    _emit();
   }
 
-  /// Analyze the pasted URL to detect if it's a song or a playlist
+  /// A watch URL containing list= always means the entire playlist.
+  static ({String id, bool isPlaylist}) parseLink(String input) {
+    var text = input.trim();
+    if (!text.contains('://')) text = 'https://$text';
+    final uri = Uri.parse(text);
+    final host = uri.host.toLowerCase();
+    if (![
+          'youtube.com',
+          'www.youtube.com',
+          'm.youtube.com',
+          'music.youtube.com',
+          'youtu.be',
+          'www.youtu.be',
+        ].contains(host) ||
+        !['http', 'https'].contains(uri.scheme)) {
+      throw const FormatException('Introduce un enlace de YouTube válido.');
+    }
+    final list = uri.queryParameters['list'];
+    if (list != null && RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(list)) {
+      return (id: list, isPlaylist: true);
+    }
+    final parts = uri.pathSegments;
+    final video = host.endsWith('youtu.be')
+        ? (parts.isEmpty ? null : parts.first)
+        : uri.queryParameters['v'] ??
+              (parts.length == 2 &&
+                      ['shorts', 'embed', 'live'].contains(parts.first)
+                  ? parts.last
+                  : null);
+    if (video == null || !RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(video)) {
+      throw const FormatException(
+        'No se encontró una canción o playlist en el enlace.',
+      );
+    }
+    return (id: video, isPlaylist: false);
+  }
+
   Future<YoutubePreview?> analyzeUrl(String input) async {
-    final url = input.trim();
-    if (url.isEmpty) return null;
-
+    if (_isDownloading || _isAnalyzing) return null;
+    final generation = ++_generation;
     _isAnalyzing = true;
-    _statusMessage = 'Analizando enlace...';
     _preview = null;
-    notifyListeners();
-
+    _tracks = [];
+    _statusMessage = 'Leyendo enlace…';
+    _emit();
     try {
-      // Check if it's a playlist URL
-      if (url.contains('list=')) {
-        final playlistId = _extractPlaylistId(url);
-        if (playlistId != null) {
-          final playlist = await _yt.playlists.get(playlistId);
-          
-          String thumb = 'https://img.youtube.com/vi/default/hqdefault.jpg';
-          try {
-            thumb = playlist.thumbnails.highResUrl;
-          } catch (_) {}
-
-          _preview = YoutubePreview(
-            isPlaylist: true,
-            id: playlistId,
-            title: playlist.title,
-            author: playlist.author,
-            thumbnailUrl: thumb,
-            trackCount: playlist.videoCount ?? 0,
+      final link = parseLink(input);
+      late final YoutubePreview preview;
+      late final List<PlaylistTrack> tracks;
+      if (link.isPlaylist) {
+        final list = await _backend
+            .playlist(link.id)
+            .timeout(const Duration(minutes: 3));
+        if (list.tracks.isEmpty) {
+          throw StateError(
+            'La playlist no tiene canciones públicas disponibles.',
           );
-          _statusMessage = 'Playlist encontrada: ${playlist.title}';
-          return _preview;
         }
-      }
-
-      // Single video
-      final videoId = _extractVideoId(url);
-      if (videoId != null) {
-        final video = await _yt.videos.get(videoId);
-        _preview = YoutubePreview(
-          isPlaylist: false,
-          id: videoId,
-          title: video.title,
-          author: video.author,
-          duration: video.duration,
-          thumbnailUrl: video.thumbnails.highResUrl,
-          trackCount: 1,
+        tracks = list.tracks;
+        preview = YoutubePreview(
+          isPlaylist: true,
+          id: link.id,
+          title: list.title,
+          author: 'Playlist de YouTube',
+          thumbnailUrl: tracks.first.thumbnailUrl,
+          trackCount: tracks.length,
         );
-        _statusMessage = 'Canción encontrada: ${video.title}';
-        return _preview;
+      } else {
+        preview = await _backend.video(link.id);
+        tracks = [PlaylistTrack(videoId: preview.id, title: preview.title)];
       }
-
-      _statusMessage = 'Enlace de YouTube no reconocido.';
-      return null;
+      if (generation != _generation || _disposed) return null;
+      _preview = preview;
+      _tracks = List.unmodifiable(tracks);
+      _statusMessage = '${tracks.length} canción(es) listas para descargar.';
+      return preview;
     } catch (e) {
-      debugPrint('Error analyzing YouTube link: $e');
-      _statusMessage = 'Error al analizar: $e';
+      if (generation == _generation) {
+        _statusMessage = 'Error al leer el enlace: $e';
+      }
       return null;
     } finally {
-      _isAnalyzing = false;
-      notifyListeners();
+      if (generation == _generation) {
+        _isAnalyzing = false;
+        _emit();
+      }
     }
   }
 
-  String? _extractPlaylistId(String url) {
-    try {
-      final uri = Uri.parse(url);
-      if (uri.queryParameters.containsKey('list')) {
-        return uri.queryParameters['list'];
-      }
-      return null;
-    } catch (_) {
-      final reg = RegExp(r'[?&]list=([a-zA-Z0-9_-]+)');
-      final match = reg.firstMatch(url);
-      return match?.group(1);
+  Future<bool> startDownload(
+    MusicStorageService storageService, {
+    String? targetSubfolder,
+  }) async {
+    final preview = _preview;
+    final root = storageService.rootMusicDirectory;
+    if (preview == null || _isDownloading || _isAnalyzing) return false;
+    if (root == null) {
+      _statusMessage = 'Selecciona una carpeta de música antes de descargar.';
+      _emit();
+      return false;
     }
-  }
-
-  String? _extractVideoId(String url) {
-    try {
-      final uri = Uri.parse(url);
-      if (uri.host.contains('youtu.be')) {
-        return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
-      }
-      if (uri.queryParameters.containsKey('v')) {
-        return uri.queryParameters['v'];
-      }
-      if (uri.pathSegments.contains('watch')) {
-        return uri.queryParameters['v'];
-      }
-      return null;
-    } catch (_) {
-      final reg = RegExp(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*');
-      final match = reg.firstMatch(url);
-      return match?.group(1);
-    }
-  }
-
-  /// Download the analyzed track or playlist into the target directory
-  Future<bool> startDownload(MusicStorageService storageService, {String? targetSubfolder}) async {
-    if (_preview == null || storageService.rootMusicDirectory == null) return false;
-
+    final tracks = List<PlaylistTrack>.of(_tracks);
     _isDownloading = true;
     _cancelRequested = false;
-    _currentProgress = 0.0;
-    notifyListeners();
-
+    _completedTracks = _failedTracks = 0;
+    _lastDownloadError = null;
+    _totalTracks = tracks.length;
+    _currentProgress = 0;
+    _emit();
     try {
-      if (_preview!.isPlaylist) {
-        return await _downloadPlaylist(storageService);
-      } else {
-        return await _downloadSingleTrack(storageService, targetSubfolder: targetSubfolder);
+      final folder = preview.isPlaylist ? preview.title : targetSubfolder;
+      final directory = folder == null || folder.trim().isEmpty
+          ? root
+          : Directory('${root.path}/${_safeName(folder)}');
+      await directory.create(recursive: true);
+      for (var i = 0; i < tracks.length && !_cancelRequested; i++) {
+        final track = tracks[i];
+        _currentTrackTitle = track.title;
+        // Stable identity avoids collisions and supports safe retries across runs.
+        final base =
+            '${directory.path}/${_safeName(track.title)} [${track.videoId}]';
+        _statusMessage = '(${i + 1}/${tracks.length}) ${track.title}';
+        _emit();
+        final ok = await _downloadTrack(track.videoId, base, i);
+        if (_cancelRequested) break;
+        if (ok) {
+          _completedTracks++;
+          await _artwork(base, track.thumbnailUrl);
+        } else {
+          _failedTracks++;
+        }
+        _currentProgress = (i + 1) / tracks.length;
+        _emit();
       }
+      _statusMessage = _cancelRequested
+          ? 'Descarga cancelada. $_completedTracks pistas guardadas.'
+          : _failedTracks > 0
+          ? 'Descarga incompleta: $_completedTracks/$_totalTracks guardadas, $_failedTracks fallidas. ${_lastDownloadError ?? 'Puedes reintentar.'}'
+          : 'Descarga completada: $_completedTracks/$_totalTracks canciones.';
+      return !_cancelRequested &&
+          _failedTracks == 0 &&
+          _completedTracks == _totalTracks;
     } catch (e) {
-      debugPrint('Error during download: $e');
       _statusMessage = 'Error en la descarga: $e';
       return false;
     } finally {
-      _isDownloading = false;
-      notifyListeners();
-      await storageService.scanLibrary();
-    }
-  }
-
-  Future<bool> _downloadSingleTrack(MusicStorageService storageService, {String? targetSubfolder}) async {
-    final videoId = _preview!.id;
-    final title = _sanitizeFilename(_preview!.title);
-    
-    // Choose destination folder
-    Directory destDir = storageService.rootMusicDirectory!;
-    if (targetSubfolder != null && targetSubfolder.isNotEmpty) {
-      destDir = Directory('${storageService.rootMusicDirectory!.path}/$targetSubfolder');
-      if (!await destDir.exists()) await destDir.create(recursive: true);
-    }
-
-    _statusMessage = 'Obteniendo stream de mejor calidad...';
-    notifyListeners();
-
-    final manifest = await _yt.videos.streamsClient.getManifest(videoId);
-    final audioStreamInfo = manifest.audioOnly.withHighestBitrate();
-
-    final filePath = '${destDir.path}/$title.m4a';
-    final file = File(filePath);
-    final output = file.openWrite();
-
-    final stream = _yt.videos.streamsClient.get(audioStreamInfo);
-    final totalBytes = audioStreamInfo.size.totalBytes;
-    int receivedBytes = 0;
-
-    await for (final chunk in stream) {
-      if (_cancelRequested) {
-        await output.close();
-        if (await file.exists()) await file.delete();
-        return false;
-      }
-      output.add(chunk);
-      receivedBytes += chunk.length;
-      if (totalBytes > 0) {
-        _currentProgress = receivedBytes / totalBytes;
-        _statusMessage = 'Descargando: ${(receivedBytes / (1024 * 1024)).toStringAsFixed(1)} MB / ${(totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB (${(_currentProgress * 100).toInt()}%)';
-        notifyListeners();
-      }
-    }
-
-    await output.flush();
-    await output.close();
-
-    // Download and save high-res artwork image alongside the track
-    await _saveArtworkFile(destDir, title, _preview!.thumbnailUrl);
-
-    _statusMessage = '¡Descarga completada con éxito!';
-    _currentProgress = 1.0;
-    notifyListeners();
-    return true;
-  }
-
-  Future<bool> _downloadPlaylist(MusicStorageService storageService) async {
-    final playlistId = _preview!.id;
-    final folderName = _sanitizeFilename(_preview!.title);
-
-    // Auto-create folder for the playlist! (The core mechanic)
-    final playlistDir = Directory('${storageService.rootMusicDirectory!.path}/$folderName');
-    if (!await playlistDir.exists()) {
-      await playlistDir.create(recursive: true);
-    }
-
-    _statusMessage = 'Cargando pistas de la playlist...';
-    notifyListeners();
-
-    final videoList = <yt_exp.Video>[];
-    await for (final video in _yt.playlists.getVideos(playlistId)) {
-      videoList.add(video);
-      _statusMessage = 'Encontradas ${videoList.length} canciones...';
-      notifyListeners();
-    }
-
-    final totalCount = videoList.length;
-    int completed = 0;
-
-    for (int i = 0; i < totalCount; i++) {
-      if (_cancelRequested) break;
-
-      final video = videoList[i];
-      final title = _sanitizeFilename(video.title);
-      final filePath = '${playlistDir.path}/$title.m4a';
-      final file = File(filePath);
-
-      if (await file.exists()) {
-        completed++;
-        continue;
-      }
-
-      _statusMessage = '(${i + 1}/$totalCount) Descargando: ${video.title}';
-      notifyListeners();
-
       try {
-        final manifest = await _yt.videos.streamsClient.getManifest(video.id);
-        final audioStreamInfo = manifest.audioOnly.withHighestBitrate();
-        final stream = _yt.videos.streamsClient.get(audioStreamInfo);
+        await storageService.scanLibrary();
+      } finally {
+        _isDownloading = false;
+        _currentTrackTitle = null;
+        _emit();
+      }
+    }
+  }
 
-        final output = file.openWrite();
-        final totalBytes = audioStreamInfo.size.totalBytes;
-        int receivedBytes = 0;
-
-        await for (final chunk in stream) {
-          if (_cancelRequested) {
-            await output.close();
-            if (await file.exists()) await file.delete();
-            return false;
+  Future<bool> _downloadTrack(String id, String base, int index) async {
+    for (final extension in ['m4a', 'webm']) {
+      final file = File('$base.$extension');
+      if (await file.exists() && await file.length() > 0) return true;
+    }
+    for (var attempt = 0; attempt < 3 && !_cancelRequested; attempt++) {
+      YoutubeAudio? audio;
+      IOSink? sink;
+      final partial = File('$base.part');
+      try {
+        _statusMessage =
+            '(${index + 1}/$_totalTracks) $_currentTrackTitle · intento ${attempt + 1}/3';
+        _emit();
+        audio = await _backend.audio(id, attempt);
+        if (_cancelRequested) return false;
+        if (!['m4a', 'webm'].contains(audio.extension)) {
+          throw StateError('Formato de audio no compatible');
+        }
+        sink = partial.openWrite();
+        var received = 0;
+        final stopwatch = Stopwatch()..start();
+        var lastUpdate = 0;
+        await for (final chunk in audio.bytes.timeout(
+          const Duration(seconds: 20),
+        )) {
+          if (_cancelRequested) return false;
+          sink.add(chunk);
+          received += chunk.length;
+          if (stopwatch.elapsed > const Duration(minutes: 5)) {
+            throw TimeoutException('Tiempo máximo por pista');
           }
-          output.add(chunk);
-          receivedBytes += chunk.length;
-          if (totalBytes > 0) {
-            final trackProgress = receivedBytes / totalBytes;
-            _currentProgress = (i + trackProgress) / totalCount;
-            notifyListeners();
+          if (stopwatch.elapsedMilliseconds - lastUpdate > 150) {
+            lastUpdate = stopwatch.elapsedMilliseconds;
+            _currentProgress =
+                (index +
+                    (audio.size > 0
+                        ? (received / audio.size).clamp(0.0, 1.0)
+                        : 0)) /
+                _totalTracks;
+            _emit();
           }
         }
-
-        await output.flush();
-        await output.close();
-
-        // Download artwork
-        await _saveArtworkFile(playlistDir, title, video.thumbnails.highResUrl);
-
-        completed++;
-        _currentProgress = completed / totalCount;
-        notifyListeners();
+        await sink.flush();
+        await sink.close();
+        sink = null;
+        if (_cancelRequested) return false;
+        if (received == 0 || (audio.size > 0 && received != audio.size)) {
+          throw StateError('Audio incompleto: $received/${audio.size} bytes');
+        }
+        await partial.rename('$base.${audio.extension}');
+        return true;
       } catch (e) {
-        debugPrint('Error downloading ${video.title}: $e');
+        final detail = e.toString();
+        _lastDownloadError =
+            detail.contains('403') || detail.contains('not a bot')
+            ? 'YouTube rechazó el acceso al audio (403/verificación). No se guardaron archivos incompletos.'
+            : e is TimeoutException
+            ? 'YouTube no respondió a tiempo. Revisa tu conexión y reintenta.'
+            : 'No se pudo obtener el audio. Puedes reintentar.';
+        debugPrint('YouTube $id, intento ${attempt + 1}: $e');
+      } finally {
+        audio?.close();
+        await sink?.close();
+        if (await partial.exists()) await partial.delete();
       }
     }
-
-    _statusMessage = '¡Playlist descargada! ($completed/$totalCount pistas)';
-    _currentProgress = 1.0;
-    notifyListeners();
-    return true;
+    return false;
   }
 
-  Future<void> _saveArtworkFile(Directory dir, String baseName, String thumbUrl) async {
+  Future<void> _artwork(String base, String url) async {
+    if (_cancelRequested || _disposed) return;
     try {
-      final res = await http.get(Uri.parse(thumbUrl));
-      if (res.statusCode == 200) {
-        final imgFile = File('${dir.path}/$baseName.jpg');
-        await imgFile.writeAsBytes(res.bodyBytes);
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        await File('$base.jpg').writeAsBytes(response.bodyBytes);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Carátula opcional no disponible: $e');
+    }
   }
 
-  String _sanitizeFilename(String input) {
-    return input
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+  String _safeName(String input) {
+    var name = (MetadataTextFixer.cleanTagText(input) ?? input)
+        .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_')
+        .trim()
+        .replaceAll(RegExp(r'[. ]+$'), '');
+    if (name.isEmpty || name == '.' || name == '..') name = 'YouTube';
+    return String.fromCharCodes(name.runes.take(100));
   }
 
   @override
   void dispose() {
-    _yt.close();
+    _disposed = true;
+    _generation++;
+    _cancelRequested = true;
+    _backend.cancel();
     super.dispose();
   }
 }

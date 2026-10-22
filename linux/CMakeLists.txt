@@ -104,6 +104,16 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
+# Include the optional project-local AAC plugin for this Linux build.
+# This does not replace system libraries; libav dependencies remain native.
+file(GLOB_RECURSE LOCAL_AAC_PLUGINS
+  "${CMAKE_CURRENT_SOURCE_DIR}/../.dart_tool/linux-codecs/usr/lib/*/libgstlibav.so")
+if(LOCAL_AAC_PLUGINS)
+  install(FILES ${LOCAL_AAC_PLUGINS}
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}/gstreamer-1.0"
+    COMPONENT Runtime)
+endif()
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

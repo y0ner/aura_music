@@ -42,7 +42,7 @@ Una aplicación nativa de reproducción de música desarrollada en **Flutter**, 
 * Al tocarlo, se despliega suavemente el **Reproductor Completo**.
 
 ### 5. 🎧 Reproductor Fullscreen (Vista Expandida)
-* **Barra superior**: Flecha hacia abajo (`⌵`) para minimizar, selector tipo píldora `Canción | Video` y menú de opciones (`⋮`).
+* **Barra superior**: Flecha hacia abajo (`⌵`) para minimizar, selector tipo píldora `Canción | Letra` (letra sincronizada estilo YouTube Music desde los `.lrc` junto al audio) y menú de opciones (`⋮`).
 * **Carátula Gigante**: Cuadrada con esquinas redondeadas (`10px`) y sombra envolvente.
 * **Información de la Pista**: Título en blanco grande y artistas.
 * **Barra de Progreso (Scrubber)**: Deslizador blanco interactivo con tiempos transcurrido (`0:13`) y total (`0:15`).

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/storage_service.dart';
 import '../services/player_service.dart';
 import '../models/playlist_model.dart';
+import '../widgets/delete_dialogs.dart';
 import '../widgets/collage_cover.dart';
 import 'playlist_detail_screen.dart';
 
@@ -37,7 +38,11 @@ class LibraryScreen extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 20,
-                    childAspectRatio: 0.52,
+                    // 0.72 ajusta la altura de la celda al contenido real
+                    // (carátula cuadrada + título + subtítulo de 2 líneas).
+                    // Con 0.52 la celda era ~140px más alta que su contenido
+                    // y se veía un «salto» vacío entre filas.
+                    childAspectRatio: 0.72,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -178,12 +183,20 @@ class LibraryScreen extends StatelessWidget {
                 subtitle: Text(playlist.folderPath, style: const TextStyle(color: Colors.white54, fontSize: 11)),
                 onTap: () => Navigator.pop(ctx),
               ),
+              const Divider(color: Color(0xFF333333)),
               ListTile(
-                leading: const Icon(Icons.refresh, color: Colors.white),
-                title: const Text('Actualizar contenido', style: TextStyle(color: Colors.white)),
+                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF4040)),
+                title: const Text(
+                  'Eliminar álbum',
+                  style: TextStyle(color: Color(0xFFFF4040)),
+                ),
+                subtitle: const Text(
+                  'Borra la carpeta y todas sus canciones del disco',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
                 onTap: () {
-                  storage.scanLibrary();
                   Navigator.pop(ctx);
+                  DeleteDialogs.confirmDeletePlaylist(context, playlist);
                 },
               ),
             ],

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "title": "Preparar el guion ampliado de entrevista",
+      "status": "in-progress"
+    },
+    {
+      "title": "Generar el PDF en la carpeta Downloads",
+      "status": "pending"
+    },
+    {
+      "title": "Verificar el PDF generado",
+      "status": "pending"
+    }
+  ],
+  "updated_at": "2026-10-01T15:15:05.175Z",
+  "session_id": "01a0f800-3fcf-70ae-a91b-bf8d5b551f4f"
+}

@@ -1,16 +1,93 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/playlist_model.dart';
+import '../models/song_model.dart';
 import '../services/player_service.dart';
 import '../widgets/collage_cover.dart';
 import '../widgets/explicit_badge.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/fullscreen_player.dart';
+import '../widgets/delete_dialogs.dart';
 
 class PlaylistDetailScreen extends StatelessWidget {
   final Playlist playlist;
 
   const PlaylistDetailScreen({super.key, required this.playlist});
+
+  /// Menú por canción: reproducir ahora o eliminar del disco.
+  void _showSongMenu(BuildContext context, Song song) {
+    final player = Provider.of<PlayerService>(context, listen: false);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        color: const Color(0xFF222222),
+                        child: song.artworkBytes != null
+                            ? Image.memory(song.artworkBytes!, fit: BoxFit.cover)
+                            : const Icon(Icons.music_note, color: Colors.white54),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Color(0xFF333333)),
+              ListTile(
+                leading: const Icon(Icons.play_circle_fill, color: Colors.white),
+                title: const Text('Reproducir', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  player.playSong(song, playlist: playlist.songs);
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF4040)),
+                title: const Text(
+                  'Eliminar canción',
+                  style: TextStyle(color: Color(0xFFFF4040)),
+                ),
+                subtitle: const Text(
+                  'Borra el archivo del disco',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  DeleteDialogs.confirmDeleteSong(context, song);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +110,9 @@ class PlaylistDetailScreen extends StatelessWidget {
                     actions: [
                       IconButton(
                         icon: const Icon(Icons.more_vert, color: Colors.white),
-                        onPressed: () {},
+                        tooltip: 'Opciones de la playlist',
+                        onPressed: () =>
+                            DeleteDialogs.confirmDeletePlaylist(context, playlist),
                       ),
                     ],
                   ),
@@ -194,10 +273,15 @@ class PlaylistDetailScreen extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            trailing: const Icon(
-                              Icons.more_vert_rounded,
-                              color: Color(0xFFAAAAAA),
-                              size: 20,
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.more_vert_rounded,
+                                color: Color(0xFFAAAAAA),
+                                size: 20,
+                              ),
+                              tooltip: 'Opciones de la canción',
+                              onPressed: () =>
+                                  _showSongMenu(context, song),
                             ),
                             onTap: () {
                               player.playSong(song, playlist: playlist.songs);

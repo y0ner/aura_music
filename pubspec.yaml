@@ -35,6 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   just_audio: ^0.10.6
+  # MediaSession y notificación de reproducción (controles desde la sombra,
+  # reproduce en primer plano aunque la app esté en segundo plano).
+  audio_service: ^0.18.19
+  # Control de medios MPRIS en Linux (widget de reproducción del escritorio).
+  dbus: ^0.7.15
   path_provider: ^2.1.6
   permission_handler: ^13.0.2
   provider: ^6.1.5+1
