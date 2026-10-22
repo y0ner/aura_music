@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../services/player_service.dart';
 import 'explicit_badge.dart';
 
@@ -43,7 +46,9 @@ class MiniPlayer extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: player.progressRatio,
                     backgroundColor: Colors.white10,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
                   ),
                 ),
 
@@ -99,7 +104,7 @@ class MiniPlayer extends StatelessWidget {
                                 ],
                                 Expanded(
                                   child: Text(
-                                    currentSong.artist,
+                                    player.playbackError ?? currentSong.artist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -113,6 +118,19 @@ class MiniPlayer extends StatelessWidget {
                           ],
                         ),
                       ),
+
+                      // Previous button (escritorio: en Android/iOS va en la
+                      // notificación, así que aquí solo se muestra en PC).
+                      if (!(Platform.isAndroid || Platform.isIOS))
+                        IconButton(
+                          icon: const Icon(
+                            Icons.skip_previous_rounded,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                          onPressed: () => player.previous(),
+                          splashRadius: 22,
+                        ),
 
                       // Play/Pause Button
                       IconButton(

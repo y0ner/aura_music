@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+
 import '../services/storage_service.dart';
 import '../services/player_service.dart';
 import '../widgets/header_bar.dart';
@@ -17,7 +18,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -39,14 +41,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        pageBuilder: (context, animation, secondaryAnimation) => FullscreenPlayer(
-          onCollapse: () => Navigator.pop(context),
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            FullscreenPlayer(onCollapse: () => Navigator.pop(context)),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
           const curve = Curves.easeOutCubic;
-          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
           return SlideTransition(
             position: animation.drive(tween),
             child: child,
@@ -63,7 +67,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF212121),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: const Text(
             'Crear Playlist (Subcarpeta)',
             style: TextStyle(color: Colors.white, fontSize: 18),
@@ -74,7 +80,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             children: [
               const Text(
                 'Escribe el nombre con tus emojis favoritos. Se creará una carpeta dentro de la app y actuará al instante como tu playlist:',
-                style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 13, height: 1.4),
+                style: TextStyle(
+                  color: Color(0xFFAAAAAA),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 14),
               TextField(
@@ -101,7 +111,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.white54),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -113,7 +126,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 if (text.isNotEmpty) {
                   final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(ctx);
-                  final storage = Provider.of<MusicStorageService>(context, listen: false);
+                  final storage = Provider.of<MusicStorageService>(
+                    context,
+                    listen: false,
+                  );
                   await storage.createPlaylistFolder(text);
                   if (mounted) {
                     messenger.showSnackBar(
@@ -138,94 +154,200 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+        Widget quick(IconData icon, String label, VoidCallback action) =>
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Column(
                   children: [
-                    const Icon(Icons.folder, color: Colors.white, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Carpeta de Música de la App',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 80,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF343434),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            storage.rootMusicDirectory?.path ?? 'No configurada',
-                            style: const TextStyle(
-                              color: Color(0xFFAAAAAA),
-                              fontSize: 12,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                        ),
+                        onPressed: action,
+                        child: Icon(icon, color: Colors.white, size: 30),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                     ),
                   ],
                 ),
               ),
-              const Divider(color: Color(0xFF333333)),
-              ListTile(
-                leading: const Icon(Icons.create_new_folder_rounded, color: Colors.white),
-                title: const Text(
-                  'Crear nueva Playlist (Subcarpeta)',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Crea una carpeta con emojis que aparecerá en Biblioteca',
-                  style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showCreateFolderDialog(context);
-                },
+            );
+        Future<void> selectFolder() async {
+          Navigator.pop(ctx);
+          final selected = await FilePicker.getDirectoryPath();
+          if (selected != null) await storage.setCustomRootDirectory(selected);
+        }
+
+        void createPlaylist() {
+          Navigator.pop(ctx);
+          _showCreateFolderDialog(context);
+        }
+
+        void scan() {
+          Navigator.pop(ctx);
+          storage.scanLibrary();
+        }
+
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * .9,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white38,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Configuración',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                storage.rootMusicDirectory?.path ??
+                                    'No configurada',
+                                style: const TextStyle(
+                                  color: Color(0xFFAAAAAA),
+                                  fontSize: 12,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Cerrar configuración',
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Color(0xFF444444), height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 24,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        quick(
+                          Icons.playlist_add,
+                          'Crear una\nplaylist',
+                          createPlaylist,
+                        ),
+                        quick(
+                          Icons.folder_open_outlined,
+                          'Elegir\ncarpeta',
+                          selectFolder,
+                        ),
+                        quick(Icons.sync, 'Actualizar\nbiblioteca', scan),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
+                    leading: const Icon(
+                      Icons.playlist_add,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'Crear nueva playlist',
+                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                    subtitle: const Text(
+                      'Crea una carpeta con emojis que aparecerá en Biblioteca',
+                      style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
+                    ),
+                    onTap: createPlaylist,
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
+                    leading: const Icon(
+                      Icons.folder_open_outlined,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'Seleccionar carpeta de música',
+                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                    subtitle: const Text(
+                      'Elige otra carpeta de tu celular o PC',
+                      style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
+                    ),
+                    onTap: selectFolder,
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
+                    leading: const Icon(
+                      Icons.sync,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'Escanear biblioteca ahora',
+                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                    onTap: scan,
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-              ListTile(
-                leading: const Icon(Icons.folder_open_rounded, color: Colors.white),
-                title: const Text(
-                  'Seleccionar otra carpeta raíz',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Elige otra carpeta de tu celular o PC',
-                  style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
-                ),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final selected = await FilePicker.getDirectoryPath();
-                  if (selected != null) {
-                    await storage.setCustomRootDirectory(selected);
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.sync_rounded, color: Colors.white),
-                title: const Text(
-                  'Escanear biblioteca ahora',
-                  style: TextStyle(color: Colors.white),
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  storage.scanLibrary();
-                },
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -314,9 +436,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               bottom: 0,
               left: 0,
               right: 0,
-              child: MiniPlayer(
-                onExpand: _openFullscreenPlayer,
-              ),
+              child: MiniPlayer(onExpand: _openFullscreenPlayer),
             ),
           ],
         ),
@@ -380,8 +500,8 @@ class MusicSearchDelegate extends SearchDelegate {
     final filteredSongs = storage.allSongs.where((s) {
       final q = query.toLowerCase();
       return s.title.toLowerCase().contains(q) ||
-             s.artist.toLowerCase().contains(q) ||
-             s.album.toLowerCase().contains(q);
+          s.artist.toLowerCase().contains(q) ||
+          s.album.toLowerCase().contains(q);
     }).toList();
 
     if (filteredSongs.isEmpty) {
@@ -400,7 +520,10 @@ class MusicSearchDelegate extends SearchDelegate {
         return ListTile(
           leading: const Icon(Icons.music_note, color: Colors.white),
           title: Text(song.title, style: const TextStyle(color: Colors.white)),
-          subtitle: Text(song.artist, style: const TextStyle(color: Colors.white54)),
+          subtitle: Text(
+            song.artist,
+            style: const TextStyle(color: Colors.white54),
+          ),
           onTap: () {
             player.playSong(song, playlist: filteredSongs);
             close(context, null);

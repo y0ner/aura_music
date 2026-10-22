@@ -33,6 +33,16 @@ fi
 
 DEVICE="$ACTION"
 
+if [ "$DEVICE" = "linux" ]; then
+  if ! gst-inspect-1.0 avdec_aac >/dev/null 2>&1; then
+    bash tool/setup_linux_audio.sh
+  fi
+  LOCAL_PLUGIN_DIR="$(find "$PWD/.dart_tool/linux-codecs/usr/lib" -name libgstlibav.so -printf '%h\n' -quit 2>/dev/null || true)"
+  if [ -n "$LOCAL_PLUGIN_DIR" ]; then
+    export GST_PLUGIN_PATH="$LOCAL_PLUGIN_DIR${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}"
+  fi
+fi
+
 # Si se especifica "android", resolver el ID del dispositivo Android conectado o emulador
 if [ "$DEVICE" = "android" ]; then
   DETECTED_DEV=$(python3 -c "
