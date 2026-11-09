@@ -5,7 +5,9 @@
 #   ./run.sh                  (Ejecuta en Linux desktop por defecto)
 #   ./run.sh linux            (Ejecuta en Linux desktop)
 #   ./run.sh android          (Ejecuta en dispositivo Android conectado)
-#   ./run.sh build-apk        (Compila el APK instalable para celular)
+#   ./run.sh build-apk        (Compila el APK release para celular)
+#   ./run.sh test             (Ejecuta pruebas unitarias)
+#   ./run.sh analyze          (Ejecuta análisis estático con linter)
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -23,11 +25,26 @@ export PATH="$JAVA_HOME/bin:$HOME/flutter/bin:$ANDROID_HOME/platform-tools:$PATH
 
 ACTION="${1:-linux}"
 
-# Opción para compilar el APK directamente
+# 1. Opción para compilar el APK directamente
 if [ "$ACTION" = "build-apk" ] || [ "$ACTION" = "apk" ]; then
   echo "▶ Compilando APK de Aura Music para Android..."
-  flutter build apk --release --android-skip-build-dependency-validation
+  flutter build apk --release --android-skip-build-dependency-validation "${@:2}"
   echo "✔ APK generado con éxito en: build/app/outputs/flutter-apk/app-release.apk"
+  ls -lh build/app/outputs/flutter-apk/app-release.apk 2>/dev/null || true
+  exit 0
+fi
+
+# 2. Opción para ejecutar tests
+if [ "$ACTION" = "test" ]; then
+  echo "▶ Ejecutando pruebas unitarias..."
+  flutter test "${@:2}"
+  exit 0
+fi
+
+# 3. Opción para análisis estático
+if [ "$ACTION" = "analyze" ]; then
+  echo "▶ Ejecutando análisis estático..."
+  flutter analyze --no-pub "${@:2}"
   exit 0
 fi
 
@@ -60,4 +77,4 @@ fi
 EXTRA_FLAGS="--android-skip-build-dependency-validation"
 
 echo "▶ Ejecutando Aura Music en $DEVICE..."
-flutter run -d "$DEVICE" $EXTRA_FLAGS
+flutter run -d "$DEVICE" $EXTRA_FLAGS "${@:2}"
