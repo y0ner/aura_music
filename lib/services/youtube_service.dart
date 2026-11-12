@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 import '../utils/metadata_text_fixer.dart';
+import 'artwork_store.dart';
 import 'playlist_fetcher.dart';
 import 'storage_service.dart';
 
@@ -259,11 +260,14 @@ class YoutubeBackend {
 class YoutubeDownloadService extends ChangeNotifier {
   final YoutubeBackend _backend;
   final Future<Directory> Function() _tempDirectory;
+  final DirectoryProvider _artworkDirectory;
   YoutubeDownloadService({
     YoutubeBackend? backend,
     Future<Directory> Function()? tempDirectory,
+    DirectoryProvider? artworkDirectory,
   }) : _backend = backend ?? YoutubeBackend(),
-       _tempDirectory = tempDirectory ?? getTemporaryDirectory;
+       _tempDirectory = tempDirectory ?? getTemporaryDirectory,
+       _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory;
 
   bool _isAnalyzing = false, _isDownloading = false, _cancelRequested = false;
   bool _disposed = false;
@@ -438,7 +442,7 @@ class YoutubeDownloadService extends ChangeNotifier {
         if (_cancelRequested) break;
         if (ok) {
           _completedTracks++;
-          await _artwork(base, track.thumbnailUrl);
+          await _artwork(track.videoId, track.thumbnailUrl);
         } else {
           _failedTracks++;
         }
@@ -560,14 +564,18 @@ class YoutubeDownloadService extends ChangeNotifier {
     return false;
   }
 
-  Future<void> _artwork(String base, String url) async {
+  Future<void> _artwork(String videoId, String url) async {
     if (_cancelRequested || _disposed) return;
     try {
+      final dir = await _artworkDirectory();
+      await dir.create(recursive: true);
+      final file = artworkFileFor(dir, videoId);
+      if (await file.exists() && await file.length() > 0) return;
       final response = await http
           .get(Uri.parse(url))
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
-        await File('$base.jpg').writeAsBytes(response.bodyBytes);
+        await file.writeAsBytes(response.bodyBytes);
       }
     } catch (e) {
       debugPrint('Carátula opcional no disponible: $e');
