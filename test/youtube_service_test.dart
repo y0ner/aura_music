@@ -66,17 +66,20 @@ class FakeBackend extends YoutubeBackend {
 void main() {
   late Directory directory;
   late Directory testTempDir;
+  late Directory testArtworkDir;
   late FakeStorage storage;
   late FakeBackend backend;
   late YoutubeDownloadService service;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('aura_youtube_test');
     testTempDir = await Directory.systemTemp.createTemp('aura_youtube_temp');
+    testArtworkDir = await Directory.systemTemp.createTemp('aura_youtube_artwork');
     storage = FakeStorage(directory);
     backend = FakeBackend();
     service = YoutubeDownloadService(
       backend: backend,
       tempDirectory: () async => testTempDir,
+      artworkDirectory: () async => testArtworkDir,
     );
   });
   tearDown(() async {
@@ -87,6 +90,9 @@ void main() {
     }
     if (await testTempDir.exists()) {
       await testTempDir.delete(recursive: true);
+    }
+    if (await testArtworkDir.exists()) {
+      await testArtworkDir.delete(recursive: true);
     }
   });
 
@@ -257,6 +263,20 @@ void main() {
         hasLength(1),
       );
       expect(failingService.statusMessage, contains('carpeta de música'));
+    },
+  );
+
+  test(
+    'tras una descarga exitosa no hay ningún .jpg en la carpeta de música',
+    () async {
+      await service.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
+      expect(await service.startDownload(storage), isTrue);
+      expect(service.completedTracks, 1);
+      final musicFiles = directory.listSync(recursive: true);
+      expect(
+        musicFiles.where((f) => f.path.endsWith('.jpg')),
+        isEmpty,
+      );
     },
   );
 }
