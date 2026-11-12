@@ -354,6 +354,9 @@ class YoutubeDownloadService extends ChangeNotifier {
   Future<YoutubePreview?> analyzeUrl(String input) async {
     if (_isDownloading || _isAnalyzing) return null;
     _previewDownloaded = false;
+    // Un enlace nuevo no hereda el resultado de la descarga anterior: si no,
+    // la UI ofrecería "Reintentar N fallidas" para algo que nunca se descargó.
+    _completedTracks = _totalTracks = _failedTracks = 0;
     final generation = ++_generation;
     _isAnalyzing = true;
     _preview = null;

@@ -120,6 +120,16 @@ void main() {
     expect(service.isPreviewDownloaded, isFalse);
   });
 
+  test('un enlace nuevo no hereda las pistas fallidas del anterior', () async {
+    backend.failTrack = true;
+    await service.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
+    expect(await service.startDownload(storage), isFalse);
+    expect(service.failedTracks, 1);
+    await service.analyzeUrl('https://youtu.be/BBBBBBBBBBB');
+    expect(service.failedTracks, 0);
+    expect(service.completedTracks, 0);
+  });
+
   test('clearPreview restablece isPreviewDownloaded a false', () async {
     await service.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
     final ok = await service.startDownload(storage);
