@@ -13,10 +13,13 @@ class _Youtube extends YoutubeDownloadService {
   String? analyzed;
   String? destination;
   bool cancelled = false;
+  bool downloaded = false;
   @override
   YoutubePreview? get preview => result;
   @override
   bool get isDownloading => downloading;
+  @override
+  bool get isPreviewDownloaded => downloaded;
   @override
   String get statusMessage =>
       downloading ? 'Descargando un título largo sin cortar el mensaje' : '';
@@ -131,4 +134,42 @@ void main() {
       storage.dispose();
     });
   }
+
+  testWidgets(
+    'con preview y downloaded = true oculta el botón y muestra confirmación',
+    (tester) async {
+      final service = _Youtube();
+      final storage = _Storage();
+      service.result = const YoutubePreview(
+        isPlaylist: false,
+        id: 'AAAAAAAAAAA',
+        title: 'Canción ya descargada',
+        author: 'Artista',
+        thumbnailUrl: '',
+        duration: Duration(minutes: 3),
+      );
+      service.downloaded = true;
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<YoutubeDownloadService>.value(
+              value: service,
+            ),
+            ChangeNotifierProvider<MusicStorageService>.value(value: storage),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.darkTheme,
+            home: const Scaffold(body: YoutubeScreen()),
+          ),
+        ),
+      );
+      expect(find.text('Descargar canción'), findsNothing);
+      expect(find.text('Descargada en tu biblioteca'), findsOneWidget);
+      expect(find.text('Pega otro enlace para descargar más.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      service.dispose();
+      storage.dispose();
+    },
+  );
 }
