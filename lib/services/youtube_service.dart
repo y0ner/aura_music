@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 import '../utils/metadata_text_fixer.dart';
@@ -257,8 +258,12 @@ class YoutubeBackend {
 
 class YoutubeDownloadService extends ChangeNotifier {
   final YoutubeBackend _backend;
-  YoutubeDownloadService({YoutubeBackend? backend})
-    : _backend = backend ?? YoutubeBackend();
+  final Future<Directory> Function() _tempDirectory;
+  YoutubeDownloadService({
+    YoutubeBackend? backend,
+    Future<Directory> Function()? tempDirectory,
+  }) : _backend = backend ?? YoutubeBackend(),
+       _tempDirectory = tempDirectory ?? getTemporaryDirectory;
 
   bool _isAnalyzing = false, _isDownloading = false, _cancelRequested = false;
   bool _disposed = false;
@@ -469,8 +474,8 @@ class YoutubeDownloadService extends ChangeNotifier {
     }
     for (var attempt = 0; attempt < 3 && !_cancelRequested; attempt++) {
       YoutubeAudio? audio;
-      IOSink? sink;
-      final partial = File('$base.part');
+      RandomAccessFile? raf;
+      File? partial;
       try {
         _statusMessage =
             '(${index + 1}/$_totalTracks) $_currentTrackTitle · intento ${attempt + 1}/3';
@@ -480,7 +485,10 @@ class YoutubeDownloadService extends ChangeNotifier {
         if (!['m4a', 'webm'].contains(audio.extension)) {
           throw StateError('Formato de audio no compatible');
         }
-        sink = partial.openWrite();
+        final tempDir = await _tempDirectory();
+        final partFile = File('${tempDir.path}/aura_$id.part');
+        partial = partFile;
+        raf = await partFile.open(mode: FileMode.write);
         var received = 0;
         final stopwatch = Stopwatch()..start();
         var lastUpdate = 0;
@@ -488,7 +496,7 @@ class YoutubeDownloadService extends ChangeNotifier {
           const Duration(seconds: 20),
         )) {
           if (_cancelRequested) return false;
-          sink.add(chunk);
+          await raf.writeFrom(chunk);
           received += chunk.length;
           if (stopwatch.elapsed > const Duration(minutes: 5)) {
             throw TimeoutException('Tiempo máximo por pista');
@@ -504,16 +512,35 @@ class YoutubeDownloadService extends ChangeNotifier {
             _emit();
           }
         }
-        await sink.flush();
-        await sink.close();
-        sink = null;
+        await raf.close();
+        raf = null;
         if (_cancelRequested) return false;
         if (received == 0 || (audio.size > 0 && received != audio.size)) {
           throw StateError('Audio incompleto: $received/${audio.size} bytes');
         }
-        await partial.rename('$base.${audio.extension}');
+        final target = File('$base.${audio.extension}');
+        try {
+          await partFile.rename(target.path);
+        } on FileSystemException {
+          try {
+            await partFile.copy(target.path);
+          } catch (copyError) {
+            if (await target.exists()) {
+              await target.delete();
+            }
+            rethrow;
+          }
+        }
         return true;
       } catch (e) {
+        if (e is FileSystemException) {
+          final osMsg = e.osError?.message;
+          final msg = (osMsg != null && osMsg.isNotEmpty) ? osMsg : e.message;
+          _lastDownloadError =
+              'No se pudo guardar el audio en la carpeta de música: $msg';
+          debugPrint('YouTube $id, intento ${attempt + 1}: $e');
+          return false;
+        }
         final detail = e.toString();
         _lastDownloadError =
             detail.contains('403') || detail.contains('not a bot')
@@ -524,8 +551,10 @@ class YoutubeDownloadService extends ChangeNotifier {
         debugPrint('YouTube $id, intento ${attempt + 1}: $e');
       } finally {
         audio?.close();
-        await sink?.close();
-        if (await partial.exists()) await partial.delete();
+        await raf?.close();
+        if (partial != null && await partial.exists()) {
+          await partial.delete();
+        }
       }
     }
     return false;
