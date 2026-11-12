@@ -271,6 +271,7 @@ class YoutubeDownloadService extends ChangeNotifier {
 
   bool _isAnalyzing = false, _isDownloading = false, _cancelRequested = false;
   bool _disposed = false;
+  bool _previewDownloaded = false;
   int _generation = 0;
   double _currentProgress = 0;
   String _statusMessage = '';
@@ -282,6 +283,7 @@ class YoutubeDownloadService extends ChangeNotifier {
 
   bool get isAnalyzing => _isAnalyzing;
   bool get isDownloading => _isDownloading;
+  bool get isPreviewDownloaded => _previewDownloaded;
   double get currentProgress => _currentProgress;
   String get statusMessage => _statusMessage;
   YoutubePreview? get preview => _preview;
@@ -299,6 +301,7 @@ class YoutubeDownloadService extends ChangeNotifier {
     _generation++;
     _backend.cancel();
     _isAnalyzing = false;
+    _previewDownloaded = false;
     _preview = null;
     _tracks = [];
     _statusMessage = '';
@@ -354,6 +357,10 @@ class YoutubeDownloadService extends ChangeNotifier {
 
   Future<YoutubePreview?> analyzeUrl(String input) async {
     if (_isDownloading || _isAnalyzing) return null;
+    _previewDownloaded = false;
+    // Un enlace nuevo no hereda el resultado de la descarga anterior: si no,
+    // la UI ofrecería "Reintentar N fallidas" para algo que nunca se descargó.
+    _completedTracks = _totalTracks = _failedTracks = 0;
     final generation = ++_generation;
     _isAnalyzing = true;
     _preview = null;
@@ -411,6 +418,7 @@ class YoutubeDownloadService extends ChangeNotifier {
     final preview = _preview;
     final root = storageService.rootMusicDirectory;
     if (preview == null || _isDownloading || _isAnalyzing) return false;
+    _previewDownloaded = false;
     if (root == null) {
       _statusMessage = 'Selecciona una carpeta de música antes de descargar.';
       _emit();
@@ -454,9 +462,11 @@ class YoutubeDownloadService extends ChangeNotifier {
           : _failedTracks > 0
           ? 'Descarga incompleta: $_completedTracks/$_totalTracks guardadas, $_failedTracks fallidas. ${_lastDownloadError ?? 'Puedes reintentar.'}'
           : 'Descarga completada: $_completedTracks/$_totalTracks canciones.';
-      return !_cancelRequested &&
+      final success = !_cancelRequested &&
           _failedTracks == 0 &&
           _completedTracks == _totalTracks;
+      _previewDownloaded = success;
+      return success;
     } catch (e) {
       _statusMessage = 'Error en la descarga: $e';
       return false;
