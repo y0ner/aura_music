@@ -8,13 +8,18 @@ import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import '../models/song_model.dart';
 import '../models/playlist_model.dart';
 import '../utils/metadata_text_fixer.dart';
+import 'artwork_store.dart';
 
 class MusicStorageService extends ChangeNotifier {
+  final DirectoryProvider _artworkDirectory;
   Directory? _rootMusicDirectory;
   List<Playlist> _playlists = [];
   List<Song> _allSongs = [];
   bool _isLoading = false;
   String _statusMessage = '';
+
+  MusicStorageService({DirectoryProvider? artworkDirectory})
+      : _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory;
 
   Directory? get rootMusicDirectory => _rootMusicDirectory;
   List<Playlist> get playlists => _playlists;
@@ -189,6 +194,18 @@ class MusicStorageService extends ChangeNotifier {
           } catch (_) {}
         }
       }
+      final videoId = videoIdFromPath(file.path);
+      if (videoId != null) {
+        try {
+          final dir = await _artworkDirectory();
+          final privateCover = artworkFileFor(dir, videoId);
+          if (await privateCover.exists()) {
+            await privateCover.delete();
+          }
+        } catch (e) {
+          debugPrint('Error eliminando carátula privada: $e');
+        }
+      }
       await scanLibrary();
       return true;
     } catch (e) {
@@ -205,6 +222,13 @@ class MusicStorageService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      Directory? artworkDir;
+      try {
+        artworkDir = await _artworkDirectory();
+      } catch (e) {
+        debugPrint('Error resolviendo directorio de carátulas: $e');
+      }
+
       final List<Playlist> foundPlaylists = [];
       final List<Song> foundAllSongs = [];
 
@@ -218,7 +242,11 @@ class MusicStorageService extends ChangeNotifier {
               .last;
 
           // Scan audio files inside this subfolder
-          final songsInFolder = await _scanSongsInDirectory(entity, folderName);
+          final songsInFolder = await _scanSongsInDirectory(
+            entity,
+            folderName,
+            artworkDir,
+          );
           foundAllSongs.addAll(songsInFolder);
 
           foundPlaylists.add(
@@ -237,6 +265,7 @@ class MusicStorageService extends ChangeNotifier {
       final looseSongs = await _scanSongsInDirectory(
         _rootMusicDirectory!,
         'General',
+        artworkDir,
       );
       for (final s in looseSongs) {
         if (!foundAllSongs.any((existing) => existing.filePath == s.filePath)) {
@@ -258,8 +287,9 @@ class MusicStorageService extends ChangeNotifier {
 
   Future<List<Song>> _scanSongsInDirectory(
     Directory dir,
-    String defaultCategory,
-  ) async {
+    String defaultCategory, [
+    Directory? artworkDir,
+  ]) async {
     final List<Song> songs = [];
     final validExtensions = [
       '.mp3',
@@ -279,7 +309,11 @@ class MusicStorageService extends ChangeNotifier {
             file.path.lastIndexOf('.'),
           );
           if (validExtensions.contains(ext)) {
-            final song = await _parseAudioFile(file, defaultCategory);
+            final song = await _parseAudioFile(
+              file,
+              defaultCategory,
+              artworkDir,
+            );
             songs.add(song);
           }
         }
@@ -290,7 +324,11 @@ class MusicStorageService extends ChangeNotifier {
     return songs;
   }
 
-  Future<Song> _parseAudioFile(File file, String category) async {
+  Future<Song> _parseAudioFile(
+    File file,
+    String category, [
+    Directory? artworkDir,
+  ]) async {
     final fileName = file.uri.pathSegments.last;
     // El nombre del archivo es el respaldo si la etiqueta no existe o viene
     // corrupta (los MP3 descargados a veces traen tags ilegibles).
@@ -339,6 +377,20 @@ class MusicStorageService extends ChangeNotifier {
         try {
           artwork = coverFile.readAsBytesSync();
         } catch (_) {}
+      }
+    }
+
+    if (artwork == null && artworkDir != null) {
+      final videoId = videoIdFromPath(file.path);
+      if (videoId != null) {
+        final privateCover = artworkFileFor(artworkDir, videoId);
+        if (privateCover.existsSync()) {
+          try {
+            artwork = privateCover.readAsBytesSync();
+          } catch (e) {
+            debugPrint('Error leyendo carátula privada: $e');
+          }
+        }
       }
     }
 
