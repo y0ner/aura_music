@@ -23,6 +23,8 @@ class FakeBackend extends YoutubeBackend {
   bool failSecond = false;
   bool incompleteFirst = false;
   Completer<void>? blocked;
+  Stream<List<int>> Function(String id, int attempt)? audioStreamBuilder;
+  int? audioSize;
   @override
   Future<PlaylistOverview> playlist(String id) async => const PlaylistOverview(
     title: 'Prueba',
@@ -46,8 +48,10 @@ class FakeBackend extends YoutubeBackend {
     if (blocked != null) await blocked!.future;
     if (failSecond && id == 'BBBBBBBBBBB') throw StateError('No disponible');
     return YoutubeAudio(
-      bytes: Stream.value([1, 2, 3, 4]),
-      size: incompleteFirst && attempt == 0 ? 8 : 4,
+      bytes: audioStreamBuilder != null
+          ? audioStreamBuilder!(id, attempt)
+          : Stream.value([1, 2, 3, 4]),
+      size: audioSize ?? (incompleteFirst && attempt == 0 ? 8 : 4),
       extension: id == 'BBBBBBBBBBB' ? 'webm' : 'm4a',
       close: () {},
     );
@@ -61,19 +65,35 @@ class FakeBackend extends YoutubeBackend {
 
 void main() {
   late Directory directory;
+  late Directory testTempDir;
+  late Directory testArtworkDir;
   late FakeStorage storage;
   late FakeBackend backend;
   late YoutubeDownloadService service;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('aura_youtube_test');
+    testTempDir = await Directory.systemTemp.createTemp('aura_youtube_temp');
+    testArtworkDir = await Directory.systemTemp.createTemp('aura_youtube_artwork');
     storage = FakeStorage(directory);
     backend = FakeBackend();
-    service = YoutubeDownloadService(backend: backend);
+    service = YoutubeDownloadService(
+      backend: backend,
+      tempDirectory: () async => testTempDir,
+      artworkDirectory: () async => testArtworkDir,
+    );
   });
   tearDown(() async {
     service.dispose();
     storage.dispose();
-    await directory.delete(recursive: true);
+    if (await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
+    if (await testTempDir.exists()) {
+      await testTempDir.delete(recursive: true);
+    }
+    if (await testArtworkDir.exists()) {
+      await testArtworkDir.delete(recursive: true);
+    }
   });
 
   test(
@@ -175,4 +195,88 @@ void main() {
       ));
     }
   });
+
+  test('el parcial nunca se escribe en la carpeta de música', () async {
+    final firstChunkDelivered = Completer<void>();
+    final allowSecondChunk = Completer<void>();
+
+    backend.audioSize = 4;
+    backend.audioStreamBuilder = (id, attempt) async* {
+      yield [1, 2];
+      firstChunkDelivered.complete();
+      await allowSecondChunk.future;
+      yield [3, 4];
+    };
+
+    await service.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
+    final download = service.startDownload(storage);
+
+    await firstChunkDelivered.future;
+
+    final destFiles = directory.listSync(recursive: true);
+    expect(destFiles.any((f) => f.path.endsWith('.part')), isFalse);
+
+    final tempFiles = testTempDir.listSync(recursive: true);
+    expect(tempFiles.any((f) => f.path.endsWith('.part')), isTrue);
+    final tempPart = tempFiles.firstWhere((f) => f.path.endsWith('.part'));
+    expect(File(tempPart.path).existsSync(), isTrue);
+    expect(File(tempPart.path).lengthSync(), 2);
+
+    allowSecondChunk.complete();
+    expect(await download, isTrue);
+
+    final m4aFiles = directory
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.m4a'))
+        .toList();
+    expect(m4aFiles, hasLength(1));
+    expect(m4aFiles.first.lengthSync(), 4);
+
+    expect(
+      testTempDir.listSync(recursive: true).any((f) => f.path.endsWith('.part')),
+      isFalse,
+    );
+  });
+
+  test(
+    'un error de disco falla rápido, sin reintentos y con mensaje claro',
+    () async {
+      final existingFile = File('${testTempDir.path}/dummy_file');
+      await existingFile.writeAsString('not a dir');
+
+      final failingService = YoutubeDownloadService(
+        backend: backend,
+        tempDirectory: () async => Directory(existingFile.path),
+      );
+      addTearDown(failingService.dispose);
+
+      await failingService.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
+
+      final result = await failingService
+          .startDownload(storage)
+          .timeout(const Duration(seconds: 5));
+
+      expect(result, isFalse);
+      expect(
+        backend.calls.where((c) => c.startsWith('AAAAAAAAAAA')),
+        hasLength(1),
+      );
+      expect(failingService.statusMessage, contains('carpeta de música'));
+    },
+  );
+
+  test(
+    'tras una descarga exitosa no hay ningún .jpg en la carpeta de música',
+    () async {
+      await service.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
+      expect(await service.startDownload(storage), isTrue);
+      expect(service.completedTracks, 1);
+      final musicFiles = directory.listSync(recursive: true);
+      expect(
+        musicFiles.where((f) => f.path.endsWith('.jpg')),
+        isEmpty,
+      );
+    },
+  );
 }

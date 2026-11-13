@@ -194,7 +194,42 @@ class _YoutubeScreenState extends State<YoutubeScreen> {
                   const SizedBox(height: 20),
                   if (service.isDownloading)
                     _downloadProgress(service)
-                  else ...[
+                  else if (service.isPreviewDownloaded) ...[
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: AppTheme.textSecondary,
+                          size: 22,
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Descargada en tu biblioteca',
+                                style: TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Pega otro enlace para descargar más.',
+                                style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
                     if (!preview.isPlaylist) ...[
                       const Text(
                         'Guardar en',
@@ -255,9 +290,11 @@ class _YoutubeScreenState extends State<YoutubeScreen> {
                       ),
                       icon: const Icon(Icons.download_outlined, size: 20),
                       label: Text(
-                        preview.isPlaylist
-                            ? 'Descargar playlist'
-                            : 'Descargar canción',
+                        service.failedTracks > 0
+                            ? 'Reintentar ${service.failedTracks} fallidas'
+                            : (preview.isPlaylist
+                                ? 'Descargar playlist'
+                                : 'Descargar canción'),
                       ),
                     ),
                   ],

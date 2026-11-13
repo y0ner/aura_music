@@ -8,13 +8,18 @@ import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import '../models/song_model.dart';
 import '../models/playlist_model.dart';
 import '../utils/metadata_text_fixer.dart';
+import 'artwork_store.dart';
 
 class MusicStorageService extends ChangeNotifier {
+  final DirectoryProvider _artworkDirectory;
   Directory? _rootMusicDirectory;
   List<Playlist> _playlists = [];
   List<Song> _allSongs = [];
   bool _isLoading = false;
   String _statusMessage = '';
+
+  MusicStorageService({DirectoryProvider? artworkDirectory})
+      : _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory;
 
   Directory? get rootMusicDirectory => _rootMusicDirectory;
   List<Playlist> get playlists => _playlists;
@@ -42,7 +47,6 @@ class MusicStorageService extends ChangeNotifier {
 
     await _requestPermissions();
     await _resolveRootMusicDirectory();
-    await _ensureStarterContent();
     await scanLibrary();
   }
 
@@ -190,6 +194,18 @@ class MusicStorageService extends ChangeNotifier {
           } catch (_) {}
         }
       }
+      final videoId = videoIdFromPath(file.path);
+      if (videoId != null) {
+        try {
+          final dir = await _artworkDirectory();
+          final privateCover = artworkFileFor(dir, videoId);
+          if (await privateCover.exists()) {
+            await privateCover.delete();
+          }
+        } catch (e) {
+          debugPrint('Error eliminando carátula privada: $e');
+        }
+      }
       await scanLibrary();
       return true;
     } catch (e) {
@@ -206,6 +222,13 @@ class MusicStorageService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      Directory? artworkDir;
+      try {
+        artworkDir = await _artworkDirectory();
+      } catch (e) {
+        debugPrint('Error resolviendo directorio de carátulas: $e');
+      }
+
       final List<Playlist> foundPlaylists = [];
       final List<Song> foundAllSongs = [];
 
@@ -219,7 +242,11 @@ class MusicStorageService extends ChangeNotifier {
               .last;
 
           // Scan audio files inside this subfolder
-          final songsInFolder = await _scanSongsInDirectory(entity, folderName);
+          final songsInFolder = await _scanSongsInDirectory(
+            entity,
+            folderName,
+            artworkDir,
+          );
           foundAllSongs.addAll(songsInFolder);
 
           foundPlaylists.add(
@@ -238,6 +265,7 @@ class MusicStorageService extends ChangeNotifier {
       final looseSongs = await _scanSongsInDirectory(
         _rootMusicDirectory!,
         'General',
+        artworkDir,
       );
       for (final s in looseSongs) {
         if (!foundAllSongs.any((existing) => existing.filePath == s.filePath)) {
@@ -259,8 +287,9 @@ class MusicStorageService extends ChangeNotifier {
 
   Future<List<Song>> _scanSongsInDirectory(
     Directory dir,
-    String defaultCategory,
-  ) async {
+    String defaultCategory, [
+    Directory? artworkDir,
+  ]) async {
     final List<Song> songs = [];
     final validExtensions = [
       '.mp3',
@@ -280,7 +309,11 @@ class MusicStorageService extends ChangeNotifier {
             file.path.lastIndexOf('.'),
           );
           if (validExtensions.contains(ext)) {
-            final song = await _parseAudioFile(file, defaultCategory);
+            final song = await _parseAudioFile(
+              file,
+              defaultCategory,
+              artworkDir,
+            );
             songs.add(song);
           }
         }
@@ -291,7 +324,11 @@ class MusicStorageService extends ChangeNotifier {
     return songs;
   }
 
-  Future<Song> _parseAudioFile(File file, String category) async {
+  Future<Song> _parseAudioFile(
+    File file,
+    String category, [
+    Directory? artworkDir,
+  ]) async {
     final fileName = file.uri.pathSegments.last;
     // El nombre del archivo es el respaldo si la etiqueta no existe o viene
     // corrupta (los MP3 descargados a veces traen tags ilegibles).
@@ -343,6 +380,20 @@ class MusicStorageService extends ChangeNotifier {
       }
     }
 
+    if (artwork == null && artworkDir != null) {
+      final videoId = videoIdFromPath(file.path);
+      if (videoId != null) {
+        final privateCover = artworkFileFor(artworkDir, videoId);
+        if (privateCover.existsSync()) {
+          try {
+            artwork = privateCover.readAsBytesSync();
+          } catch (e) {
+            debugPrint('Error leyendo carátula privada: $e');
+          }
+        }
+      }
+    }
+
     return Song(
       id: file.path,
       title: title,
@@ -359,107 +410,5 @@ class MusicStorageService extends ChangeNotifier {
   void toggleFavorite(Song song) {
     song.isFavorite = !song.isFavorite;
     notifyListeners();
-  }
-
-  /// Create sample playlists and dummy demo songs on first launch so the library isn't empty
-  Future<void> _ensureStarterContent() async {
-    if (_rootMusicDirectory == null) return;
-    try {
-      final entities = _rootMusicDirectory!.listSync();
-      if (entities.isEmpty) {
-        // Create matching playlists from the screenshots
-        final samplePlaylists = [
-          'Trap Latino Malandro',
-          '🍂 Autumn Vibes & Jazz',
-          '🔥 Perreo & Club',
-          '🏋️ Gym Motivación',
-        ];
-
-        for (final pName in samplePlaylists) {
-          final dir = Directory('${_rootMusicDirectory!.path}/$pName');
-          await dir.create(recursive: true);
-
-          // Generate sample audio tracks with valid WAV header
-          final trackNames = [
-            'Un Dia En Mi Barrio (Remix)',
-            'LOVE',
-            'Coronamos (con Lito Kirino)',
-            'OH SHIT',
-            'Compa/Chappie',
-          ];
-
-          for (int i = 0; i < trackNames.length; i++) {
-            final tName = trackNames[i];
-            final audioFile = File('${dir.path}/$tName.wav');
-            if (!await audioFile.exists()) {
-              final wavBytes = _generateSampleWavTone(seconds: 45 + (i * 25));
-              await audioFile.writeAsBytes(wavBytes);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error creating starter demo playlists: $e');
-    }
-  }
-
-  /// Generates a valid 16-bit PCM WAV audio byte stream for testing and playing
-  Uint8List _generateSampleWavTone({
-    int seconds = 180,
-    int sampleRate = 44100,
-  }) {
-    final numSamples = sampleRate * seconds;
-    final dataSize = numSamples * 2; // 16-bit mono
-    final totalSize = 36 + dataSize;
-    final bytes = ByteData(44 + dataSize);
-
-    // RIFF chunk descriptor
-    bytes.setUint8(0, 0x52); // R
-    bytes.setUint8(1, 0x49); // I
-    bytes.setUint8(2, 0x46); // F
-    bytes.setUint8(3, 0x46); // F
-    bytes.setUint32(4, totalSize, Endian.little);
-    bytes.setUint8(8, 0x57); // W
-    bytes.setUint8(9, 0x41); // A
-    bytes.setUint8(10, 0x56); // V
-    bytes.setUint8(11, 0x45); // E
-
-    // "fmt " sub-chunk
-    bytes.setUint8(12, 0x66); // f
-    bytes.setUint8(13, 0x6D); // m
-    bytes.setUint8(14, 0x74); // t
-    bytes.setUint8(15, 0x20); // ' '
-    bytes.setUint32(16, 16, Endian.little); // Subchunk1Size (16 for PCM)
-    bytes.setUint16(20, 1, Endian.little); // AudioFormat (1 = PCM)
-    bytes.setUint16(22, 1, Endian.little); // NumChannels (1 = Mono)
-    bytes.setUint32(24, sampleRate, Endian.little); // SampleRate
-    bytes.setUint32(28, sampleRate * 2, Endian.little); // ByteRate
-    bytes.setUint16(32, 2, Endian.little); // BlockAlign
-    bytes.setUint16(34, 16, Endian.little); // BitsPerSample
-
-    // "data" sub-chunk
-    bytes.setUint8(36, 0x64); // d
-    bytes.setUint8(37, 0x61); // a
-    bytes.setUint8(38, 0x74); // t
-    bytes.setUint8(39, 0x61); // a
-    bytes.setUint32(40, dataSize, Endian.little);
-
-    // Soft ambient acoustic sine wave tone
-    const frequency = 220.0; // A3 tone
-    for (int i = 0; i < numSamples; i++) {
-      final amplitude = 0.25;
-      final sample =
-          (amplitude *
-                  32767.0 *
-                  ((i % (sampleRate ~/ frequency) <
-                          (sampleRate ~/ (frequency * 2)))
-                      ? 1
-                      : -1))
-              .toInt()
-              .clamp(-32768, 32767);
-      bytes.setInt16(44 + (i * 2), sample, Endian.little);
-    }
-
-    return bytes.buffer.asUint8List();
   }
 }
