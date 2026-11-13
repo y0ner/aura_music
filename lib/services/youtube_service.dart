@@ -5,9 +5,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 import '../utils/metadata_text_fixer.dart';
+import 'artwork_store.dart';
 import 'playlist_fetcher.dart';
 import 'storage_service.dart';
 
@@ -257,11 +259,19 @@ class YoutubeBackend {
 
 class YoutubeDownloadService extends ChangeNotifier {
   final YoutubeBackend _backend;
-  YoutubeDownloadService({YoutubeBackend? backend})
-    : _backend = backend ?? YoutubeBackend();
+  final Future<Directory> Function() _tempDirectory;
+  final DirectoryProvider _artworkDirectory;
+  YoutubeDownloadService({
+    YoutubeBackend? backend,
+    Future<Directory> Function()? tempDirectory,
+    DirectoryProvider? artworkDirectory,
+  }) : _backend = backend ?? YoutubeBackend(),
+       _tempDirectory = tempDirectory ?? getTemporaryDirectory,
+       _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory;
 
   bool _isAnalyzing = false, _isDownloading = false, _cancelRequested = false;
   bool _disposed = false;
+  bool _previewDownloaded = false;
   int _generation = 0;
   double _currentProgress = 0;
   String _statusMessage = '';
@@ -273,6 +283,7 @@ class YoutubeDownloadService extends ChangeNotifier {
 
   bool get isAnalyzing => _isAnalyzing;
   bool get isDownloading => _isDownloading;
+  bool get isPreviewDownloaded => _previewDownloaded;
   double get currentProgress => _currentProgress;
   String get statusMessage => _statusMessage;
   YoutubePreview? get preview => _preview;
@@ -290,6 +301,7 @@ class YoutubeDownloadService extends ChangeNotifier {
     _generation++;
     _backend.cancel();
     _isAnalyzing = false;
+    _previewDownloaded = false;
     _preview = null;
     _tracks = [];
     _statusMessage = '';
@@ -345,6 +357,10 @@ class YoutubeDownloadService extends ChangeNotifier {
 
   Future<YoutubePreview?> analyzeUrl(String input) async {
     if (_isDownloading || _isAnalyzing) return null;
+    _previewDownloaded = false;
+    // Un enlace nuevo no hereda el resultado de la descarga anterior: si no,
+    // la UI ofrecería "Reintentar N fallidas" para algo que nunca se descargó.
+    _completedTracks = _totalTracks = _failedTracks = 0;
     final generation = ++_generation;
     _isAnalyzing = true;
     _preview = null;
@@ -402,6 +418,7 @@ class YoutubeDownloadService extends ChangeNotifier {
     final preview = _preview;
     final root = storageService.rootMusicDirectory;
     if (preview == null || _isDownloading || _isAnalyzing) return false;
+    _previewDownloaded = false;
     if (root == null) {
       _statusMessage = 'Selecciona una carpeta de música antes de descargar.';
       _emit();
@@ -433,7 +450,7 @@ class YoutubeDownloadService extends ChangeNotifier {
         if (_cancelRequested) break;
         if (ok) {
           _completedTracks++;
-          await _artwork(base, track.thumbnailUrl);
+          await _artwork(track.videoId, track.thumbnailUrl);
         } else {
           _failedTracks++;
         }
@@ -445,9 +462,11 @@ class YoutubeDownloadService extends ChangeNotifier {
           : _failedTracks > 0
           ? 'Descarga incompleta: $_completedTracks/$_totalTracks guardadas, $_failedTracks fallidas. ${_lastDownloadError ?? 'Puedes reintentar.'}'
           : 'Descarga completada: $_completedTracks/$_totalTracks canciones.';
-      return !_cancelRequested &&
+      final success = !_cancelRequested &&
           _failedTracks == 0 &&
           _completedTracks == _totalTracks;
+      _previewDownloaded = success;
+      return success;
     } catch (e) {
       _statusMessage = 'Error en la descarga: $e';
       return false;
@@ -469,8 +488,8 @@ class YoutubeDownloadService extends ChangeNotifier {
     }
     for (var attempt = 0; attempt < 3 && !_cancelRequested; attempt++) {
       YoutubeAudio? audio;
-      IOSink? sink;
-      final partial = File('$base.part');
+      RandomAccessFile? raf;
+      File? partial;
       try {
         _statusMessage =
             '(${index + 1}/$_totalTracks) $_currentTrackTitle · intento ${attempt + 1}/3';
@@ -480,7 +499,10 @@ class YoutubeDownloadService extends ChangeNotifier {
         if (!['m4a', 'webm'].contains(audio.extension)) {
           throw StateError('Formato de audio no compatible');
         }
-        sink = partial.openWrite();
+        final tempDir = await _tempDirectory();
+        final partFile = File('${tempDir.path}/aura_$id.part');
+        partial = partFile;
+        raf = await partFile.open(mode: FileMode.write);
         var received = 0;
         final stopwatch = Stopwatch()..start();
         var lastUpdate = 0;
@@ -488,7 +510,7 @@ class YoutubeDownloadService extends ChangeNotifier {
           const Duration(seconds: 20),
         )) {
           if (_cancelRequested) return false;
-          sink.add(chunk);
+          await raf.writeFrom(chunk);
           received += chunk.length;
           if (stopwatch.elapsed > const Duration(minutes: 5)) {
             throw TimeoutException('Tiempo máximo por pista');
@@ -504,16 +526,35 @@ class YoutubeDownloadService extends ChangeNotifier {
             _emit();
           }
         }
-        await sink.flush();
-        await sink.close();
-        sink = null;
+        await raf.close();
+        raf = null;
         if (_cancelRequested) return false;
         if (received == 0 || (audio.size > 0 && received != audio.size)) {
           throw StateError('Audio incompleto: $received/${audio.size} bytes');
         }
-        await partial.rename('$base.${audio.extension}');
+        final target = File('$base.${audio.extension}');
+        try {
+          await partFile.rename(target.path);
+        } on FileSystemException {
+          try {
+            await partFile.copy(target.path);
+          } catch (copyError) {
+            if (await target.exists()) {
+              await target.delete();
+            }
+            rethrow;
+          }
+        }
         return true;
       } catch (e) {
+        if (e is FileSystemException) {
+          final osMsg = e.osError?.message;
+          final msg = (osMsg != null && osMsg.isNotEmpty) ? osMsg : e.message;
+          _lastDownloadError =
+              'No se pudo guardar el audio en la carpeta de música: $msg';
+          debugPrint('YouTube $id, intento ${attempt + 1}: $e');
+          return false;
+        }
         final detail = e.toString();
         _lastDownloadError =
             detail.contains('403') || detail.contains('not a bot')
@@ -524,21 +565,27 @@ class YoutubeDownloadService extends ChangeNotifier {
         debugPrint('YouTube $id, intento ${attempt + 1}: $e');
       } finally {
         audio?.close();
-        await sink?.close();
-        if (await partial.exists()) await partial.delete();
+        await raf?.close();
+        if (partial != null && await partial.exists()) {
+          await partial.delete();
+        }
       }
     }
     return false;
   }
 
-  Future<void> _artwork(String base, String url) async {
+  Future<void> _artwork(String videoId, String url) async {
     if (_cancelRequested || _disposed) return;
     try {
+      final dir = await _artworkDirectory();
+      await dir.create(recursive: true);
+      final file = artworkFileFor(dir, videoId);
+      if (await file.exists() && await file.length() > 0) return;
       final response = await http
           .get(Uri.parse(url))
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
-        await File('$base.jpg').writeAsBytes(response.bodyBytes);
+        await file.writeAsBytes(response.bodyBytes);
       }
     } catch (e) {
       debugPrint('Carátula opcional no disponible: $e');
