@@ -1,5 +1,7 @@
+import 'package:aura_music/models/download_job.dart';
 import 'package:aura_music/models/playlist_model.dart';
 import 'package:aura_music/screens/youtube_screen.dart';
+import 'package:aura_music/services/playlist_fetcher.dart';
 import 'package:aura_music/services/storage_service.dart';
 import 'package:aura_music/services/youtube_service.dart';
 import 'package:aura_music/theme/app_theme.dart';
@@ -14,6 +16,8 @@ class _Youtube extends YoutubeDownloadService {
   String? destination;
   bool cancelled = false;
   bool downloaded = false;
+  List<DownloadJob> queueJobs = [];
+
   @override
   YoutubePreview? get preview => result;
   @override
@@ -31,6 +35,46 @@ class _Youtube extends YoutubeDownloadService {
   double get currentProgress => .31;
   @override
   String get currentTrackTitle => 'MORPHINE';
+
+  @override
+  List<DownloadJob> get jobs => List.unmodifiable(queueJobs);
+
+  @override
+  DownloadJob? get currentJob {
+    if (downloading && result != null) {
+      return DownloadJob(
+        id: 1,
+        preview: result!,
+        tracks: [PlaylistTrack(videoId: result!.id, title: result!.title)],
+        status: DownloadJobStatus.downloading,
+        completed: 5,
+      );
+    }
+    return queueJobs
+        .where((j) => j.status == DownloadJobStatus.downloading)
+        .firstOrNull;
+  }
+
+  @override
+  int get waitingCount =>
+      queueJobs.where((j) => j.status == DownloadJobStatus.waiting).length;
+
+  @override
+  DownloadJob? jobFor(String previewId) {
+    if (downloading && result?.id == previewId) {
+      return DownloadJob(
+        id: 1,
+        preview: result!,
+        tracks: [PlaylistTrack(videoId: result!.id, title: result!.title)],
+        status: DownloadJobStatus.downloading,
+        completed: 5,
+      );
+    }
+    return queueJobs.reversed
+        .where((j) => j.preview.id == previewId)
+        .firstOrNull;
+  }
+
   @override
   Future<YoutubePreview?> analyzeUrl(String input) async {
     analyzed = input;
@@ -47,13 +91,35 @@ class _Youtube extends YoutubeDownloadService {
   }
 
   @override
+  DownloadJob? enqueue(
+    MusicStorageService storageService, {
+    String? targetSubfolder,
+  }) {
+    destination = targetSubfolder;
+    downloading = true;
+    if (result != null) {
+      final job = DownloadJob(
+        id: 1,
+        preview: result!,
+        tracks: [PlaylistTrack(videoId: result!.id, title: result!.title)],
+        targetSubfolder: targetSubfolder,
+        status: DownloadJobStatus.downloading,
+        completed: 5,
+      );
+      queueJobs = [job];
+      notifyListeners();
+      return job;
+    }
+    notifyListeners();
+    return null;
+  }
+
+  @override
   Future<bool> startDownload(
     MusicStorageService storageService, {
     String? targetSubfolder,
   }) async {
-    destination = targetSubfolder;
-    downloading = true;
-    notifyListeners();
+    enqueue(storageService, targetSubfolder: targetSubfolder);
     return true;
   }
 
@@ -61,6 +127,7 @@ class _Youtube extends YoutubeDownloadService {
   void cancel() {
     cancelled = true;
     downloading = false;
+    queueJobs.clear();
     notifyListeners();
   }
 }
@@ -121,10 +188,10 @@ void main() {
       expect(service.destination, 'Favoritas');
       expect(find.text('Descargando • 5/16'), findsOneWidget);
       expect(find.text('31%'), findsOneWidget);
-      expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+      expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('Cancelar descarga'));
-      await tester.tap(find.text('Cancelar descarga'));
+      await tester.ensureVisible(find.text('Cancelar esta descarga'));
+      await tester.tap(find.text('Cancelar esta descarga'));
       await tester.pumpAndSettle();
       expect(service.cancelled, isTrue);
       expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
@@ -134,6 +201,58 @@ void main() {
       storage.dispose();
     });
   }
+
+  testWidgets(
+    'con downloading = true y un job waiting en jobs se ve Cola de descargas, En espera y Quitar de la cola',
+    (tester) async {
+      final service = _Youtube();
+      final storage = _Storage();
+      service.downloading = true;
+      const waitingPreview = YoutubePreview(
+        isPlaylist: false,
+        id: 'BBBBBBBBBBB',
+        title: 'Segunda canción en espera',
+        author: 'Artista 2',
+        thumbnailUrl: '',
+        duration: Duration(minutes: 2),
+      );
+      final waitingJob = DownloadJob(
+        id: 2,
+        preview: waitingPreview,
+        tracks: const [
+          PlaylistTrack(
+            videoId: 'BBBBBBBBBBB',
+            title: 'Segunda canción en espera',
+          ),
+        ],
+        status: DownloadJobStatus.waiting,
+      );
+      service.queueJobs = [waitingJob];
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<YoutubeDownloadService>.value(
+              value: service,
+            ),
+            ChangeNotifierProvider<MusicStorageService>.value(value: storage),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.darkTheme,
+            home: const Scaffold(body: YoutubeScreen()),
+          ),
+        ),
+      );
+
+      expect(find.text('Cola de descargas'), findsOneWidget);
+      expect(find.text('En espera'), findsOneWidget);
+      expect(find.byTooltip('Quitar de la cola'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      service.dispose();
+      storage.dispose();
+    },
+  );
 
   testWidgets(
     'con preview y downloaded = true oculta el botón y muestra confirmación',

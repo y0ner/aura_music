@@ -55,6 +55,12 @@ class _FakeBackend extends YoutubeBackend {
   }
 
   @override
+  void cancelAnalysis() {}
+
+  @override
+  void cancelAudio() {}
+
+  @override
   void cancel() {}
 }
 
