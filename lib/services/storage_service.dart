@@ -9,6 +9,7 @@ import '../models/song_model.dart';
 import '../models/playlist_model.dart';
 import '../utils/metadata_text_fixer.dart';
 import 'artwork_store.dart';
+import 'lyrics_service.dart';
 
 class MusicStorageService extends ChangeNotifier {
   final DirectoryProvider _artworkDirectory;
@@ -205,6 +206,11 @@ class MusicStorageService extends ChangeNotifier {
         } catch (e) {
           debugPrint('Error eliminando carátula privada: $e');
         }
+      }
+      try {
+        await LyricsService.shared.deleteCachedFor(file.path);
+      } catch (e) {
+        debugPrint('Error eliminando letra privada en caché: $e');
       }
       await scanLibrary();
       return true;
