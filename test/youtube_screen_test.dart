@@ -1,4 +1,3 @@
-import 'package:aura_music/models/download_job.dart';
 import 'package:aura_music/models/playlist_model.dart';
 import 'package:aura_music/screens/youtube_screen.dart';
 import 'package:aura_music/services/playlist_fetcher.dart';

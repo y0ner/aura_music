@@ -604,17 +604,10 @@ class YoutubeDownloadService extends ChangeNotifier {
             'Descarga completada: ${job.completed}/${job.tracks.length} canciones.';
       }
 
-      final success = job.status == DownloadJobStatus.done;
-      if (!job.completer.isCompleted) {
-        job.completer.complete(success);
-      }
     } catch (e) {
       job.status = DownloadJobStatus.failed;
       job.error = e.toString();
       _statusMessage = 'Error en la descarga: $e';
-      if (!job.completer.isCompleted) {
-        job.completer.complete(false);
-      }
     } finally {
       try {
         await storage.scanLibrary();
@@ -624,6 +617,11 @@ class YoutubeDownloadService extends ChangeNotifier {
         _currentJob = null;
         _currentTrackTitle = null;
         _emit();
+        // Se completa al final: quien espera startDownload ve la biblioteca
+        // ya reescaneada y el servicio fuera del estado "descargando".
+        if (!job.completer.isCompleted) {
+          job.completer.complete(job.status == DownloadJobStatus.done);
+        }
       }
     }
   }
