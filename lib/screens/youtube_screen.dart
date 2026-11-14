@@ -50,8 +50,9 @@ class _YoutubeScreenState extends State<YoutubeScreen> {
   Widget build(BuildContext context) {
     return Consumer2<YoutubeDownloadService, MusicStorageService>(
       builder: (context, service, storage, _) {
-        final busy = service.isAnalyzing || service.isDownloading;
+        final busy = service.isAnalyzing;
         final preview = service.preview;
+        final job = preview != null ? service.jobFor(preview.id) : null;
         return ColoredBox(
           color: AppTheme.bgDark,
           child: SingleChildScrollView(
@@ -171,7 +172,7 @@ class _YoutubeScreenState extends State<YoutubeScreen> {
                   ],
                 ),
                 if (service.statusMessage.isNotEmpty &&
-                    !service.isDownloading) ...[
+                    (!service.isDownloading || preview == null)) ...[
                   const SizedBox(height: 18),
                   Semantics(
                     liveRegion: true,
@@ -192,112 +193,14 @@ class _YoutubeScreenState extends State<YoutubeScreen> {
                   ),
                   _mediaRow(preview),
                   const SizedBox(height: 20),
-                  if (service.isDownloading)
-                    _downloadProgress(service)
-                  else if (service.isPreviewDownloaded) ...[
-                    const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: AppTheme.textSecondary,
-                          size: 22,
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Descargada en tu biblioteca',
-                                style: TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Pega otro enlace para descargar más.',
-                                style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    if (!preview.isPlaylist) ...[
-                      const Text(
-                        'Guardar en',
-                        style: TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      DropdownButton<String>(
-                        value:
-                            storage.playlists.any(
-                              (p) => p.name == _targetSubfolder,
-                            )
-                            ? _targetSubfolder
-                            : '',
-                        isExpanded: true,
-                        dropdownColor: AppTheme.cardDark,
-                        icon: const Icon(
-                          Icons.expand_more,
-                          color: AppTheme.textSecondary,
-                        ),
-                        style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 14,
-                        ),
-                        underline: const SizedBox.shrink(),
-                        items: [
-                          const DropdownMenuItem(
-                            value: '',
-                            child: Text('Descargas generales'),
-                          ),
-                          ...storage.playlists.map(
-                            (p) => DropdownMenuItem(
-                              value: p.name,
-                              child: Text(
-                                p.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _targetSubfolder = value ?? ''),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    FilledButton.icon(
-                      style: _primaryStyle,
-                      onPressed: () => service.startDownload(
-                        storage,
-                        targetSubfolder:
-                            storage.playlists.any(
-                              (p) => p.name == _targetSubfolder,
-                            )
-                            ? _targetSubfolder
-                            : '',
-                      ),
-                      icon: const Icon(Icons.download_outlined, size: 20),
-                      label: Text(
-                        service.failedTracks > 0
-                            ? 'Reintentar ${service.failedTracks} fallidas'
-                            : (preview.isPlaylist
-                                ? 'Descargar playlist'
-                                : 'Descargar canción'),
-                      ),
-                    ),
-                  ],
+                  _previewActions(context, service, storage, preview, job),
+                ],
+                if (service.jobs.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Divider(height: 1),
+                  ),
+                  _queueSection(service),
                 ],
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -481,9 +384,318 @@ class _YoutubeScreenState extends State<YoutubeScreen> {
           style: TextButton.styleFrom(foregroundColor: AppTheme.textPrimary),
           onPressed: service.cancel,
           icon: const Icon(Icons.close, size: 18),
-          label: const Text('Cancelar descarga'),
+          label: const Text('Cancelar esta descarga'),
         ),
       ],
+    );
+  }
+
+  Widget _subfolderDropdown(MusicStorageService storage) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Guardar en',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        DropdownButton<String>(
+          value: storage.playlists.any((p) => p.name == _targetSubfolder)
+              ? _targetSubfolder
+              : '',
+          isExpanded: true,
+          dropdownColor: AppTheme.cardDark,
+          icon: const Icon(
+            Icons.expand_more,
+            color: AppTheme.textSecondary,
+          ),
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 14,
+          ),
+          underline: const SizedBox.shrink(),
+          items: [
+            const DropdownMenuItem(
+              value: '',
+              child: Text('Descargas generales'),
+            ),
+            ...storage.playlists.map(
+              (p) => DropdownMenuItem(
+                value: p.name,
+                child: Text(
+                  p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+          onChanged: (value) => setState(() => _targetSubfolder = value ?? ''),
+        ),
+      ],
+    );
+  }
+
+  Widget _previewActions(
+    BuildContext context,
+    YoutubeDownloadService service,
+    MusicStorageService storage,
+    YoutubePreview preview,
+    DownloadJob? job,
+  ) {
+    if (job?.status == DownloadJobStatus.downloading) {
+      return _downloadProgress(service);
+    }
+
+    if (job?.status == DownloadJobStatus.waiting) {
+      final waitingList = service.jobs
+          .where((j) => j.status == DownloadJobStatus.waiting)
+          .toList();
+      final pos = waitingList.indexOf(job!) + 1;
+      final position = pos > 0 ? pos : 1;
+      return Row(
+        children: [
+          const Icon(
+            Icons.hourglass_empty,
+            color: AppTheme.textSecondary,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'En cola · posición $position',
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (job?.status == DownloadJobStatus.done || service.isPreviewDownloaded) {
+      return const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.check_circle,
+            color: AppTheme.textSecondary,
+            size: 22,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Descargada en tu biblioteca',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Pega otro enlace para descargar más.',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (job?.status == DownloadJobStatus.failed) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!preview.isPlaylist) ...[
+            _subfolderDropdown(storage),
+            const SizedBox(height: 12),
+          ],
+          FilledButton.icon(
+            style: _primaryStyle,
+            onPressed: () => service.enqueue(
+              storage,
+              targetSubfolder:
+                  storage.playlists.any((p) => p.name == _targetSubfolder)
+                      ? _targetSubfolder
+                      : '',
+            ),
+            icon: const Icon(Icons.refresh, size: 20),
+            label: Text(
+              'Reintentar ${job!.failed > 0 ? job.failed : preview.trackCount} fallidas',
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!preview.isPlaylist) ...[
+          _subfolderDropdown(storage),
+          const SizedBox(height: 12),
+        ],
+        FilledButton.icon(
+          style: _primaryStyle,
+          onPressed: () => service.enqueue(
+            storage,
+            targetSubfolder:
+                storage.playlists.any((p) => p.name == _targetSubfolder)
+                    ? _targetSubfolder
+                    : '',
+          ),
+          icon: Icon(
+            service.isDownloading
+                ? Icons.queue_music
+                : Icons.download_outlined,
+            size: 20,
+          ),
+          label: Text(
+            service.isDownloading
+                ? 'Añadir a la cola'
+                : (preview.isPlaylist
+                    ? 'Descargar playlist'
+                    : 'Descargar canción'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _queueSection(YoutubeDownloadService service) {
+    final hasFinished = service.jobs.any(
+      (j) =>
+          j.status == DownloadJobStatus.done ||
+          j.status == DownloadJobStatus.failed ||
+          j.status == DownloadJobStatus.cancelled,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Cola de descargas',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (hasFinished)
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.textSecondary,
+                ),
+                onPressed: service.clearFinished,
+                child: const Text('Limpiar terminadas'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...service.jobs.map((job) => _queueRow(service, job)),
+      ],
+    );
+  }
+
+  Widget _queueRow(YoutubeDownloadService service, DownloadJob job) {
+    final String statusText;
+    switch (job.status) {
+      case DownloadJobStatus.downloading:
+        statusText = 'Descargando ${job.completed}/${job.tracks.length}';
+        break;
+      case DownloadJobStatus.waiting:
+        statusText = 'En espera';
+        break;
+      case DownloadJobStatus.done:
+        statusText = 'Descargada';
+        break;
+      case DownloadJobStatus.failed:
+        statusText = '${job.failed} fallidas';
+        break;
+      case DownloadJobStatus.cancelled:
+        statusText = 'Cancelada';
+        break;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: ColoredBox(
+                color: AppTheme.cardDark,
+                child: job.preview.thumbnailUrl.isEmpty
+                    ? const Icon(
+                        Icons.music_note,
+                        color: AppTheme.textSecondary,
+                        size: 20,
+                      )
+                    : Image.network(
+                        job.preview.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.music_note,
+                          color: AppTheme.textSecondary,
+                          size: 20,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  job.preview.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  statusText,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (job.status == DownloadJobStatus.waiting)
+            IconButton(
+              tooltip: 'Quitar de la cola',
+              icon: const Icon(
+                Icons.close,
+                size: 18,
+                color: AppTheme.textSecondary,
+              ),
+              onPressed: () => service.removeJob(job.id),
+            ),
+        ],
+      ),
     );
   }
 }

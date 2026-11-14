@@ -8,10 +8,14 @@ import 'package:http/io_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
+import '../models/download_job.dart';
 import '../utils/metadata_text_fixer.dart';
 import 'artwork_store.dart';
+import 'lyrics_service.dart';
 import 'playlist_fetcher.dart';
 import 'storage_service.dart';
+
+export '../models/download_job.dart';
 
 class YoutubePreview {
   final bool isPlaylist;
@@ -250,10 +254,18 @@ class YoutubeBackend {
     }
   }
 
-  void cancel() {
+  void cancelAnalysis() {
     _active?.close();
     _playlistClient?.close();
+  }
+
+  void cancelAudio() {
     _audioClient?.close();
+  }
+
+  void cancel() {
+    cancelAnalysis();
+    cancelAudio();
   }
 }
 
@@ -261,60 +273,126 @@ class YoutubeDownloadService extends ChangeNotifier {
   final YoutubeBackend _backend;
   final Future<Directory> Function() _tempDirectory;
   final DirectoryProvider _artworkDirectory;
+
+  /// Si se indica, precarga la letra de cada canción descargada para que
+  /// esté disponible sin conexión. Es null en las pruebas (sin red).
+  final LyricsService? _lyrics;
   YoutubeDownloadService({
     YoutubeBackend? backend,
     Future<Directory> Function()? tempDirectory,
     DirectoryProvider? artworkDirectory,
+    LyricsService? lyricsService,
   }) : _backend = backend ?? YoutubeBackend(),
        _tempDirectory = tempDirectory ?? getTemporaryDirectory,
-       _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory;
+       _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory,
+       _lyrics = lyricsService;
 
-  bool _isAnalyzing = false, _isDownloading = false, _cancelRequested = false;
+  bool _isAnalyzing = false, _cancelRequested = false;
   bool _disposed = false;
-  bool _previewDownloaded = false;
   int _generation = 0;
   double _currentProgress = 0;
   String _statusMessage = '';
   String? _lastDownloadError;
   YoutubePreview? _preview;
   List<PlaylistTrack> _tracks = [];
-  int _completedTracks = 0, _totalTracks = 0, _failedTracks = 0;
+  int _totalTracks = 0;
   String? _currentTrackTitle;
 
+  final List<DownloadJob> _jobs = [];
+  int _nextJobId = 0;
+  DownloadJob? _currentJob;
+  bool _isRunnerActive = false;
+
   bool get isAnalyzing => _isAnalyzing;
-  bool get isDownloading => _isDownloading;
-  bool get isPreviewDownloaded => _previewDownloaded;
-  double get currentProgress => _currentProgress;
+  bool get isDownloading => _currentJob != null;
+  DownloadJob? get currentJob => _currentJob;
+  List<DownloadJob> get jobs => List.unmodifiable(_jobs);
+  int get waitingCount =>
+      _jobs.where((j) => j.status == DownloadJobStatus.waiting).length;
+  DownloadJob? jobFor(String previewId) =>
+      _jobs.reversed.where((j) => j.preview.id == previewId).firstOrNull;
+  bool get isPreviewDownloaded =>
+      _preview != null &&
+      jobFor(_preview!.id)?.status == DownloadJobStatus.done;
+  double get currentProgress {
+    if (_currentJob != null) return _currentProgress;
+    if (_preview != null) {
+      final job = jobFor(_preview!.id);
+      if (job != null) {
+        if (job.status == DownloadJobStatus.done) return 1.0;
+        if (job.tracks.isNotEmpty) {
+          return (job.completed / job.tracks.length).clamp(0.0, 1.0);
+        }
+      }
+    }
+    return 0.0;
+  }
+
   String get statusMessage => _statusMessage;
   YoutubePreview? get preview => _preview;
-  int get completedTracks => _completedTracks;
-  int get totalTracks => _totalTracks;
-  int get failedTracks => _failedTracks;
-  String? get currentTrackTitle => _currentTrackTitle;
+  int get completedTracks {
+    if (_currentJob != null) return _currentJob!.completed;
+    if (_preview != null) return jobFor(_preview!.id)?.completed ?? 0;
+    return 0;
+  }
+
+  int get totalTracks {
+    if (_currentJob != null) return _currentJob!.tracks.length;
+    if (_preview != null) return jobFor(_preview!.id)?.tracks.length ?? 0;
+    return 0;
+  }
+
+  int get failedTracks {
+    if (_currentJob != null) return _currentJob!.failed;
+    if (_preview != null) return jobFor(_preview!.id)?.failed ?? 0;
+    return 0;
+  }
+
+  String? get currentTrackTitle =>
+      _currentJob != null ? _currentTrackTitle : null;
 
   void _emit() {
     if (!_disposed) notifyListeners();
   }
 
   void clearPreview() {
-    if (_isDownloading) return;
     _generation++;
-    _backend.cancel();
+    _backend.cancelAnalysis();
     _isAnalyzing = false;
-    _previewDownloaded = false;
     _preview = null;
     _tracks = [];
     _statusMessage = '';
-    _currentProgress = 0;
-    _completedTracks = _totalTracks = _failedTracks = 0;
     _emit();
   }
 
   void cancel() {
-    if (!_isDownloading) return;
+    if (_currentJob == null) return;
     _cancelRequested = true;
-    _backend.cancel();
+    _backend.cancelAudio();
     _statusMessage = 'Cancelando descarga…';
+    _emit();
+  }
+
+  void removeJob(int id) {
+    final index = _jobs.indexWhere(
+      (j) => j.id == id && j.status == DownloadJobStatus.waiting,
+    );
+    if (index != -1) {
+      final removed = _jobs.removeAt(index);
+      if (!removed.completer.isCompleted) {
+        removed.completer.complete(false);
+      }
+      _emit();
+    }
+  }
+
+  void clearFinished() {
+    _jobs.removeWhere(
+      (j) =>
+          j.status == DownloadJobStatus.done ||
+          j.status == DownloadJobStatus.failed ||
+          j.status == DownloadJobStatus.cancelled,
+    );
     _emit();
   }
 
@@ -356,11 +434,7 @@ class YoutubeDownloadService extends ChangeNotifier {
   }
 
   Future<YoutubePreview?> analyzeUrl(String input) async {
-    if (_isDownloading || _isAnalyzing) return null;
-    _previewDownloaded = false;
-    // Un enlace nuevo no hereda el resultado de la descarga anterior: si no,
-    // la UI ofrecería "Reintentar N fallidas" para algo que nunca se descargó.
-    _completedTracks = _totalTracks = _failedTracks = 0;
+    if (_isAnalyzing) return null;
     final generation = ++_generation;
     _isAnalyzing = true;
     _preview = null;
@@ -411,74 +485,186 @@ class YoutubeDownloadService extends ChangeNotifier {
     }
   }
 
-  Future<bool> startDownload(
-    MusicStorageService storageService, {
+  DownloadJob? enqueue(
+    MusicStorageService storage, {
     String? targetSubfolder,
-  }) async {
+  }) {
     final preview = _preview;
-    final root = storageService.rootMusicDirectory;
-    if (preview == null || _isDownloading || _isAnalyzing) return false;
-    _previewDownloaded = false;
+    if (preview == null) {
+      _statusMessage = 'No hay ninguna canción o playlist para descargar.';
+      _emit();
+      return null;
+    }
+    final root = storage.rootMusicDirectory;
     if (root == null) {
       _statusMessage = 'Selecciona una carpeta de música antes de descargar.';
       _emit();
-      return false;
+      return null;
     }
-    final tracks = List<PlaylistTrack>.of(_tracks);
-    _isDownloading = true;
-    _cancelRequested = false;
-    _completedTracks = _failedTracks = 0;
-    _lastDownloadError = null;
-    _totalTracks = tracks.length;
-    _currentProgress = 0;
+    final existing = jobFor(preview.id);
+    if (existing != null &&
+        (existing.status == DownloadJobStatus.waiting ||
+            existing.status == DownloadJobStatus.downloading)) {
+      _statusMessage = 'Ya está en la cola.';
+      _emit();
+      return null;
+    }
+
+    final job = DownloadJob(
+      id: ++_nextJobId,
+      preview: preview,
+      tracks: _tracks,
+      targetSubfolder: targetSubfolder,
+      storage: storage,
+    );
+    _jobs.add(job);
     _emit();
+    _runQueue();
+    return job;
+  }
+
+  Future<void> _runQueue() async {
+    if (_isRunnerActive) return;
+    _isRunnerActive = true;
     try {
-      final folder = preview.isPlaylist ? preview.title : targetSubfolder;
+      while (!_disposed) {
+        DownloadJob? nextJob;
+        for (final job in _jobs) {
+          if (job.status == DownloadJobStatus.waiting) {
+            nextJob = job;
+            break;
+          }
+        }
+        if (nextJob == null) break;
+        await _executeJob(nextJob);
+      }
+    } finally {
+      _isRunnerActive = false;
+      _currentJob = null;
+      _emit();
+    }
+  }
+
+  Future<void> _executeJob(DownloadJob job) async {
+    _currentJob = job;
+    job.status = DownloadJobStatus.downloading;
+    _cancelRequested = false;
+    _lastDownloadError = null;
+    _currentProgress = 0;
+    _totalTracks = job.tracks.length;
+    _emit();
+
+    final storage = job.storage;
+    final root = storage?.rootMusicDirectory;
+    if (storage == null || root == null) {
+      job.status = DownloadJobStatus.failed;
+      job.error = 'Selecciona una carpeta de música antes de descargar.';
+      _statusMessage = 'Selecciona una carpeta de música antes de descargar.';
+      if (!job.completer.isCompleted) job.completer.complete(false);
+      _emit();
+      return;
+    }
+
+    try {
+      final folder = job.preview.isPlaylist
+          ? job.preview.title
+          : job.targetSubfolder;
       final directory = folder == null || folder.trim().isEmpty
           ? root
           : Directory('${root.path}/${_safeName(folder)}');
       await directory.create(recursive: true);
-      for (var i = 0; i < tracks.length && !_cancelRequested; i++) {
-        final track = tracks[i];
+
+      for (var i = 0; i < job.tracks.length && !_cancelRequested; i++) {
+        final track = job.tracks[i];
         _currentTrackTitle = track.title;
-        // Stable identity avoids collisions and supports safe retries across runs.
         final base =
             '${directory.path}/${_safeName(track.title)} [${track.videoId}]';
-        _statusMessage = '(${i + 1}/${tracks.length}) ${track.title}';
+        _statusMessage = '(${i + 1}/${job.tracks.length}) ${track.title}';
         _emit();
+
         final ok = await _downloadTrack(track.videoId, base, i);
         if (_cancelRequested) break;
         if (ok) {
-          _completedTracks++;
+          job.completed++;
           await _artwork(track.videoId, track.thumbnailUrl);
+          // En segundo plano: la letra no debe frenar la descarga. prefetch
+          // nunca lanza y no repite si ya hay .lrc o marcador .none.
+          final lyrics = _lyrics;
+          if (lyrics != null) {
+            unawaited(
+              lyrics.prefetch(
+                cacheKey: track.videoId,
+                title: track.title,
+                duration: _parseDuration(track.durationText) ??
+                    (job.preview.isPlaylist ? null : job.preview.duration),
+              ),
+            );
+          }
         } else {
-          _failedTracks++;
+          job.failed++;
         }
-        _currentProgress = (i + 1) / tracks.length;
+        _currentProgress = (i + 1) / job.tracks.length;
         _emit();
       }
-      _statusMessage = _cancelRequested
-          ? 'Descarga cancelada. $_completedTracks pistas guardadas.'
-          : _failedTracks > 0
-          ? 'Descarga incompleta: $_completedTracks/$_totalTracks guardadas, $_failedTracks fallidas. ${_lastDownloadError ?? 'Puedes reintentar.'}'
-          : 'Descarga completada: $_completedTracks/$_totalTracks canciones.';
-      final success = !_cancelRequested &&
-          _failedTracks == 0 &&
-          _completedTracks == _totalTracks;
-      _previewDownloaded = success;
-      return success;
+
+      if (_cancelRequested) {
+        job.status = DownloadJobStatus.cancelled;
+        job.error = _lastDownloadError;
+        _statusMessage =
+            'Descarga cancelada. ${job.completed} pistas guardadas.';
+      } else if (job.failed > 0 || job.completed < job.tracks.length) {
+        job.status = DownloadJobStatus.failed;
+        job.error = _lastDownloadError;
+        _statusMessage =
+            'Descarga incompleta: ${job.completed}/${job.tracks.length} guardadas, ${job.failed} fallidas. ${_lastDownloadError ?? 'Puedes reintentar.'}';
+      } else {
+        job.status = DownloadJobStatus.done;
+        job.error = null;
+        _statusMessage =
+            'Descarga completada: ${job.completed}/${job.tracks.length} canciones.';
+      }
+
     } catch (e) {
+      job.status = DownloadJobStatus.failed;
+      job.error = e.toString();
       _statusMessage = 'Error en la descarga: $e';
-      return false;
     } finally {
       try {
-        await storageService.scanLibrary();
+        await storage.scanLibrary();
+      } catch (e) {
+        debugPrint('scanLibrary error: $e');
       } finally {
-        _isDownloading = false;
+        _currentJob = null;
         _currentTrackTitle = null;
         _emit();
+        // Se completa al final: quien espera startDownload ve la biblioteca
+        // ya reescaneada y el servicio fuera del estado "descargando".
+        if (!job.completer.isCompleted) {
+          job.completer.complete(job.status == DownloadJobStatus.done);
+        }
       }
     }
+  }
+
+  Future<bool> startDownload(
+    MusicStorageService storageService, {
+    String? targetSubfolder,
+  }) async {
+    final job = enqueue(storageService, targetSubfolder: targetSubfolder);
+    if (job == null) return false;
+    return await job.completer.future;
+  }
+
+  /// "3:08" o "1:02:03" → Duration; null si no se puede leer.
+  static Duration? _parseDuration(String? text) {
+    if (text == null) return null;
+    final parts = text.trim().split(':').map(int.tryParse).toList();
+    if (parts.isEmpty || parts.length > 3 || parts.contains(null)) return null;
+    var seconds = 0;
+    for (final p in parts) {
+      seconds = seconds * 60 + p!;
+    }
+    return seconds > 0 ? Duration(seconds: seconds) : null;
   }
 
   Future<bool> _downloadTrack(String id, String base, int index) async {

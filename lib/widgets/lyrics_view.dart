@@ -91,7 +91,17 @@ class _LyricsViewState extends State<LyricsView> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Colors.white54),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Colors.white54),
+                  SizedBox(height: 16),
+                  Text(
+                    'Buscando letra…',
+                    style: TextStyle(color: Colors.white60, fontSize: 16),
+                  ),
+                ],
+              ),
             );
           }
           final lyrics = snapshot.data;
@@ -100,7 +110,7 @@ class _LyricsViewState extends State<LyricsView> {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'Letra no disponible\nAgrega un archivo .lrc junto a la canción.',
+                  'Letra no disponible para esta canción.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white60, fontSize: 18),
                 ),
