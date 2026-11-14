@@ -41,8 +41,12 @@ class LrclibFetcher implements LyricsFetcher {
     '4k',
   ];
 
-  @visibleForTesting
-  static String buildSearchQuery({required String title, String? artist}) {
+  /// Separa `artista - título` (si el artista no se conoce) y limpia el
+  /// título de grupos tipo "(Video Official)" y del sufijo "ft ...".
+  static ({String artist, String title}) _splitArtistTitle({
+    required String title,
+    String? artist,
+  }) {
     var effectiveArtist = (artist == null ||
             artist.trim().isEmpty ||
             artist.trim() == 'Artista desconocido')
@@ -78,12 +82,50 @@ class LrclibFetcher implements LyricsFetcher {
       ),
       ' ',
     );
+    return (
+      artist: effectiveArtist,
+      title: cleanTitle.replaceAll(RegExp(r'\s+'), ' ').trim(),
+    );
+  }
 
-    return [effectiveArtist, cleanTitle]
+  @visibleForTesting
+  static String buildSearchQuery({required String title, String? artist}) {
+    final parts = _splitArtistTitle(title: title, artist: artist);
+    return [parts.artist, parts.title]
         .where((s) => s.isNotEmpty)
         .join(' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  /// Núcleo comparable de un título: sin grupos (...)/[...], sin "ft ...",
+  /// sin tildes ni signos, en minúsculas y con espacios colapsados.
+  static String _coreTitle(String input) {
+    var s = input.toLowerCase();
+    s = s.replaceAll(_groupRegex, ' ');
+    s = s.replaceAll(RegExp(r'\s(?:ft|feat)\.?\s.*$'), ' ');
+    const accents = {
+      'á': 'a', 'à': 'a', 'ä': 'a', 'â': 'a',
+      'é': 'e', 'è': 'e', 'ë': 'e', 'ê': 'e',
+      'í': 'i', 'ì': 'i', 'ï': 'i', 'î': 'i',
+      'ó': 'o', 'ò': 'o', 'ö': 'o', 'ô': 'o',
+      'ú': 'u', 'ù': 'u', 'ü': 'u', 'û': 'u',
+      'ñ': 'n', 'ç': 'c',
+    };
+    s = s.split('').map((c) => accents[c] ?? c).join();
+    s = s.replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
+    return s.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// true si el título de LRCLIB corresponde a la canción buscada. Evita
+  /// mostrar la letra de otra canción que solo coincide en duración.
+  @visibleForTesting
+  static bool titlesMatch(String wanted, String? candidate) {
+    final a = _coreTitle(wanted);
+    if (a.isEmpty) return true;
+    final b = _coreTitle(candidate ?? '');
+    if (b.isEmpty) return false;
+    return a == b || b.contains(a) || a.contains(b);
   }
 
   @override
@@ -115,28 +157,37 @@ class LrclibFetcher implements LyricsFetcher {
       );
     }
 
-    List<dynamic> jsonList;
+    // Una respuesta 200 que no es una lista JSON (p. ej. la página HTML de un
+    // portal cautivo de WiFi) no significa "no existe": es un error de red y
+    // no debe dejar el marcador .none de 7 días.
+    Object? decoded;
     try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is List) {
-        jsonList = decoded;
-      } else {
-        return null;
-      }
+      decoded = jsonDecode(response.body);
     } catch (e) {
-      debugPrint('Error parseando JSON de LRCLIB: $e');
-      return null;
+      throw LyricsFetchException('Respuesta de LRCLIB no es JSON', e);
+    }
+    if (decoded is! List) {
+      throw LyricsFetchException('Respuesta de LRCLIB inesperada');
     }
 
-    return _pickLyrics(jsonList, duration);
+    final wantedTitle = _splitArtistTitle(title: title, artist: artist).title;
+    return _pickLyrics(decoded, duration, wantedTitle);
   }
 
-  static String? _pickLyrics(List<dynamic> items, Duration? targetDuration) {
+  static String? _pickLyrics(
+    List<dynamic> items,
+    Duration? targetDuration,
+    String wantedTitle,
+  ) {
     if (items.isEmpty) return null;
 
     final candidates = <_LrclibItem>[];
     for (final item in items) {
       if (item is Map) {
+        final trackName = item['trackName'];
+        if (!titlesMatch(wantedTitle, trackName is String ? trackName : null)) {
+          continue;
+        }
         final durationVal = item['duration'];
         final double? d = durationVal is num ? durationVal.toDouble() : null;
         final synced = item['syncedLyrics'] as String?;

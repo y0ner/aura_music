@@ -186,5 +186,59 @@ void main() {
         throwsA(isA<LyricsFetchException>()),
       );
     });
+
+    test(
+      'una respuesta 200 que no es JSON (portal cautivo) es error de red',
+      () async {
+        final client = MockClient(
+          (request) async =>
+              http.Response('<html>Inicia sesión en el WiFi</html>', 200),
+        );
+        final fetcher = LrclibFetcher(client: client);
+        expect(
+          () => fetcher.fetch(title: 'BANSHEE'),
+          throwsA(isA<LyricsFetchException>()),
+        );
+      },
+    );
+
+    test('descarta otra canción que solo coincide en duración', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode([
+            {
+              'trackName': 'Mañana',
+              'artistName': 'Otro',
+              'duration': 161.0,
+              'syncedLyrics': '[00:01.00]Letra de otra canción',
+            },
+          ]),
+          200,
+        );
+      });
+      final fetcher = LrclibFetcher(client: client);
+      final result = await fetcher.fetch(
+        title: 'Hoy',
+        artist: 'Artista desconocido',
+        duration: const Duration(seconds: 161),
+      );
+      expect(result, isNull);
+    });
+
+    test('titlesMatch tolera tildes, prefijo de artista y ft', () {
+      expect(
+        LrclibFetcher.titlesMatch(
+          'BANSHEE',
+          'FloyyMenor - BANSHEE ft J Balvin',
+        ),
+        isTrue,
+      );
+      expect(LrclibFetcher.titlesMatch('Soltandote', 'Soltándote'), isTrue);
+      expect(
+        LrclibFetcher.titlesMatch('Prendo (feat. Thommykill)', 'Prendo'),
+        isTrue,
+      );
+      expect(LrclibFetcher.titlesMatch('Hoy', 'Mañana'), isFalse);
+    });
   });
 }
