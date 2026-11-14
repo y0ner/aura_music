@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:aura_music/models/download_job.dart';
 import 'package:aura_music/services/playlist_fetcher.dart';
 import 'package:aura_music/services/storage_service.dart';
 import 'package:aura_music/services/youtube_service.dart';
