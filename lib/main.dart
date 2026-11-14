@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/aura_audio_handler.dart';
 import 'services/linux_mpris_service.dart';
+import 'services/lyrics_service.dart';
 import 'services/storage_service.dart';
 import 'services/player_service.dart';
 import 'services/youtube_service.dart';
@@ -63,7 +64,9 @@ void main() async {
       ),
     );
   }
-  final youtubeService = YoutubeDownloadService();
+  final youtubeService = YoutubeDownloadService(
+    lyricsService: LyricsService.shared,
+  );
 
   debugPrint('aura: lanzando runApp');
   runApp(

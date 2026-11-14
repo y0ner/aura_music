@@ -11,6 +11,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../models/download_job.dart';
 import '../utils/metadata_text_fixer.dart';
 import 'artwork_store.dart';
+import 'lyrics_service.dart';
 import 'playlist_fetcher.dart';
 import 'storage_service.dart';
 
@@ -272,13 +273,19 @@ class YoutubeDownloadService extends ChangeNotifier {
   final YoutubeBackend _backend;
   final Future<Directory> Function() _tempDirectory;
   final DirectoryProvider _artworkDirectory;
+
+  /// Si se indica, precarga la letra de cada canción descargada para que
+  /// esté disponible sin conexión. Es null en las pruebas (sin red).
+  final LyricsService? _lyrics;
   YoutubeDownloadService({
     YoutubeBackend? backend,
     Future<Directory> Function()? tempDirectory,
     DirectoryProvider? artworkDirectory,
+    LyricsService? lyricsService,
   }) : _backend = backend ?? YoutubeBackend(),
        _tempDirectory = tempDirectory ?? getTemporaryDirectory,
-       _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory;
+       _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory,
+       _lyrics = lyricsService;
 
   bool _isAnalyzing = false, _cancelRequested = false;
   bool _disposed = false;
@@ -580,6 +587,19 @@ class YoutubeDownloadService extends ChangeNotifier {
         if (ok) {
           job.completed++;
           await _artwork(track.videoId, track.thumbnailUrl);
+          // En segundo plano: la letra no debe frenar la descarga. prefetch
+          // nunca lanza y no repite si ya hay .lrc o marcador .none.
+          final lyrics = _lyrics;
+          if (lyrics != null) {
+            unawaited(
+              lyrics.prefetch(
+                cacheKey: track.videoId,
+                title: track.title,
+                duration: _parseDuration(track.durationText) ??
+                    (job.preview.isPlaylist ? null : job.preview.duration),
+              ),
+            );
+          }
         } else {
           job.failed++;
         }
@@ -633,6 +653,18 @@ class YoutubeDownloadService extends ChangeNotifier {
     final job = enqueue(storageService, targetSubfolder: targetSubfolder);
     if (job == null) return false;
     return await job.completer.future;
+  }
+
+  /// "3:08" o "1:02:03" → Duration; null si no se puede leer.
+  static Duration? _parseDuration(String? text) {
+    if (text == null) return null;
+    final parts = text.trim().split(':').map(int.tryParse).toList();
+    if (parts.isEmpty || parts.length > 3 || parts.contains(null)) return null;
+    var seconds = 0;
+    for (final p in parts) {
+      seconds = seconds * 60 + p!;
+    }
+    return seconds > 0 ? Duration(seconds: seconds) : null;
   }
 
   Future<bool> _downloadTrack(String id, String base, int index) async {
