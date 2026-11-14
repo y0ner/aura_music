@@ -58,8 +58,14 @@ class FakeBackend extends YoutubeBackend {
   }
 
   @override
-  void cancel() {
+  void cancelAudio() {
     if (blocked != null && !blocked!.isCompleted) blocked!.complete();
+  }
+
+  @override
+  void cancel() {
+    cancelAnalysis();
+    cancelAudio();
   }
 }
 
@@ -156,16 +162,18 @@ void main() {
   );
 
   test(
-    'cancelar no publica audio ni acepta otro análisis durante la descarga',
+    'cancelar no publica audio incompleto',
     () async {
       backend.blocked = Completer<void>();
       await service.analyzeUrl('https://youtu.be/AAAAAAAAAAA');
       final download = service.startDownload(storage);
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(service.isDownloading, isTrue);
-      expect(await service.analyzeUrl('https://youtu.be/BBBBBBBBBBB'), isNull);
+      final analyzed = await service.analyzeUrl('https://youtu.be/BBBBBBBBBBB');
+      expect(analyzed, isNotNull);
+      expect(service.preview!.id, 'BBBBBBBBBBB');
       service.clearPreview();
-      expect(service.preview!.id, 'AAAAAAAAAAA');
+      expect(service.preview, isNull);
       service.cancel();
       expect(await download, isFalse);
       expect(service.completedTracks, 0);
