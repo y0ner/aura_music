@@ -1,16 +1,17 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
 
 import '../services/storage_service.dart';
-import '../services/player_service.dart';
-import '../widgets/header_bar.dart';
-import '../widgets/mini_player.dart';
+import '../theme/app_theme.dart';
 import '../widgets/fullscreen_player.dart';
+import '../widgets/mini_player.dart';
+import 'buscar_screen.dart';
+import 'inicio_screen.dart';
 import 'library_screen.dart';
-import 'downloads_screen.dart';
 import 'youtube_screen.dart';
 
+/// Contenedor principal con barra inferior de 4 destinos y mini reproductor.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,23 +19,17 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+enum _HomeTab { inicio, buscar, biblioteca, anadir }
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(() {
-      setState(() {});
-    });
-  }
+class _HomeScreenState extends State<HomeScreen> {
+  _HomeTab _currentTab = _HomeTab.inicio;
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void _selectTab(_HomeTab tab) {
+    if (_currentTab == tab) return;
+    if (_currentTab == _HomeTab.buscar) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+    setState(() => _currentTab = tab);
   }
 
   void _openFullscreenPlayer() {
@@ -47,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen>
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
           const curve = Curves.easeOutCubic;
-          var tween = Tween(
+          final tween = Tween(
             begin: begin,
             end: end,
           ).chain(CurveTween(curve: curve));
@@ -61,134 +56,63 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showCreateFolderDialog(BuildContext context) {
-    final controller = TextEditingController(text: '🔥 ');
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF212121),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: const Text(
-            'Crear Playlist (Subcarpeta)',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Escribe el nombre con tus emojis favoritos. Se creará una carpeta dentro de la app y actuará al instante como tu playlist:',
-                style: TextStyle(
-                  color: Color(0xFFAAAAAA),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Ej: 🏋️ Gym Motivación',
-                  hintStyle: const TextStyle(color: Colors.white38),
-                  filled: true,
-                  fillColor: const Color(0xFF141414),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.white24),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-              ),
-              onPressed: () async {
-                final text = controller.text.trim();
-                if (text.isNotEmpty) {
-                  final messenger = ScaffoldMessenger.of(context);
-                  Navigator.pop(ctx);
-                  final storage = Provider.of<MusicStorageService>(
-                    context,
-                    listen: false,
-                  );
-                  await storage.createPlaylistFolder(text);
-                  if (mounted) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text('Carpeta y Playlist "$text" creada!'),
-                        backgroundColor: const Color(0xFF333333),
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Crear'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => const _CreatePlaylistDialog(),
     );
   }
 
   void _showFolderOptions(BuildContext context) {
     final storage = Provider.of<MusicStorageService>(context, listen: false);
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTheme.surfaceHigh,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
       ),
       builder: (ctx) {
         Widget quick(IconData icon, String label, VoidCallback action) =>
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.space8,
+                ),
                 child: Column(
                   children: [
                     SizedBox(
                       width: double.infinity,
-                      height: 80,
+                      height: AppTheme.playerPlayButtonSize,
                       child: FilledButton(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF343434),
+                          backgroundColor: AppTheme.chip,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusArtwork,
+                            ),
                           ),
                         ),
                         onPressed: action,
-                        child: Icon(icon, color: Colors.white, size: 30),
+                        child: Icon(
+                          icon,
+                          color: AppTheme.textPrimary,
+                          size: 28,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppTheme.space12),
                     Text(
                       label,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: AppTheme.label,
                     ),
                   ],
                 ),
               ),
             );
+
         Future<void> selectFolder() async {
           Navigator.pop(ctx);
           final selected = await FilePicker.getDirectoryPath();
@@ -214,17 +138,17 @@ class _HomeScreenState extends State<HomeScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppTheme.space8),
                   Container(
-                    width: 40,
-                    height: 4,
+                    width: AppTheme.chipHeight,
+                    height: AppTheme.space4,
                     decoration: BoxDecoration(
-                      color: Colors.white38,
-                      borderRadius: BorderRadius.circular(4),
+                      color: AppTheme.outline,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(AppTheme.pagePadding),
                     child: Row(
                       children: [
                         Expanded(
@@ -233,20 +157,13 @@ class _HomeScreenState extends State<HomeScreen>
                             children: [
                               const Text(
                                 'Configuración',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: AppTheme.titleLarge,
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 storage.rootMusicDirectory?.path ??
                                     'No configurada',
-                                style: const TextStyle(
-                                  color: Color(0xFFAAAAAA),
-                                  fontSize: 12,
-                                ),
+                                style: AppTheme.caption,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -256,20 +173,24 @@ class _HomeScreenState extends State<HomeScreen>
                         IconButton(
                           tooltip: 'Cerrar configuración',
                           onPressed: () => Navigator.pop(ctx),
+                          constraints: const BoxConstraints.tightFor(
+                            width: AppTheme.minTouch,
+                            height: AppTheme.minTouch,
+                          ),
                           icon: const Icon(
                             Icons.close,
-                            color: Colors.white,
-                            size: 28,
+                            color: AppTheme.textPrimary,
+                            size: 24,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const Divider(color: Color(0xFF444444), height: 1),
+                  const Divider(color: AppTheme.outline, height: 1),
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 24,
+                      horizontal: AppTheme.space12,
+                      vertical: AppTheme.space24,
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,61 +211,61 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 8,
+                      horizontal: AppTheme.space24,
+                      vertical: AppTheme.space8,
                     ),
                     leading: const Icon(
                       Icons.playlist_add,
-                      color: Colors.white,
-                      size: 28,
+                      color: AppTheme.textPrimary,
+                      size: 24,
                     ),
                     title: const Text(
                       'Crear nueva playlist',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
                     subtitle: const Text(
                       'Crea una carpeta con emojis que aparecerá en Biblioteca',
-                      style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
+                      style: AppTheme.caption,
                     ),
                     onTap: createPlaylist,
                   ),
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 8,
+                      horizontal: AppTheme.space24,
+                      vertical: AppTheme.space8,
                     ),
                     leading: const Icon(
                       Icons.folder_open_outlined,
-                      color: Colors.white,
-                      size: 28,
+                      color: AppTheme.textPrimary,
+                      size: 24,
                     ),
                     title: const Text(
                       'Seleccionar carpeta de música',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
                     subtitle: const Text(
                       'Elige otra carpeta de tu celular o PC',
-                      style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
+                      style: AppTheme.caption,
                     ),
                     onTap: selectFolder,
                   ),
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 8,
+                      horizontal: AppTheme.space24,
+                      vertical: AppTheme.space8,
                     ),
                     leading: const Icon(
                       Icons.sync,
-                      color: Colors.white,
-                      size: 28,
+                      color: AppTheme.textPrimary,
+                      size: 24,
                     ),
                     title: const Text(
                       'Escanear biblioteca ahora',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
                     onTap: scan,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppTheme.space24),
                 ],
               ),
             ),
@@ -354,89 +275,67 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _showSearchModal(BuildContext context) {
-    showSearch(
-      context: context,
-      delegate: MusicSearchDelegate(
-        storage: Provider.of<MusicStorageService>(context, listen: false),
-        player: Provider.of<PlayerService>(context, listen: false),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF030303),
-      body: SafeArea(
-        child: Stack(
+    return PopScope(
+      canPop: _currentTab == _HomeTab.inicio,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentTab != _HomeTab.inicio) {
+          _selectTab(_HomeTab.inicio);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.bg,
+        body: IndexedStack(
+          index: _currentTab.index,
           children: [
-            Column(
-              children: [
-                // Top Header Bar
-                HeaderBar(
-                  onMenuPressed: () => _showFolderOptions(context),
-                  onOpenFolderPressed: () => _showFolderOptions(context),
-                  onSearchPressed: () => _showSearchModal(context),
-                  onProfilePressed: () => _showFolderOptions(context),
+            InicioScreen(
+              onOpenSearch: () => _selectTab(_HomeTab.buscar),
+              onOpenSettings: () => _showFolderOptions(context),
+              onAddMusic: () => _selectTab(_HomeTab.anadir),
+            ),
+            const BuscarScreen(),
+            LibraryScreen(
+              onSearch: () => _selectTab(_HomeTab.buscar),
+              onCreatePlaylist: () => _showCreateFolderDialog(context),
+              bottomInset: AppTheme.space16,
+            ),
+            const SafeArea(
+              bottom: false,
+              child: YoutubeScreen(),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MiniPlayer(onExpand: _openFullscreenPlayer),
+            NavigationBar(
+              selectedIndex: _currentTab.index,
+              onDestinationSelected: (index) =>
+                  _selectTab(_HomeTab.values[index]),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded),
+                  label: 'Inicio',
                 ),
-
-                // Navigation Tabs ("BIBLIOTECA" & "DESCARGAS")
-                Container(
-                  color: const Color(0xFF030303),
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: const Color(0xFF888888),
-                    labelStyle: const TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                    indicatorColor: Colors.white,
-                    indicatorWeight: 3,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    dividerColor: Colors.transparent,
-                    indicatorPadding: const EdgeInsets.only(bottom: 2),
-                    tabs: const [
-                      Tab(text: 'BIBLIOTECA'),
-                      Tab(text: 'DESCARGAS'),
-                      Tab(text: 'YOUTUBE'),
-                    ],
-                  ),
+                NavigationDestination(
+                  icon: Icon(Icons.search),
+                  selectedIcon: Icon(Icons.search),
+                  label: 'Buscar',
                 ),
-
-                const Divider(color: Color(0xFF1C1C1C), height: 1),
-
-                // Tab Views
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: const [
-                      LibraryScreen(),
-                      DownloadsScreen(),
-                      YoutubeScreen(),
-                    ],
-                  ),
+                NavigationDestination(
+                  icon: Icon(Icons.bookmark_border),
+                  selectedIcon: Icon(Icons.bookmark),
+                  label: 'Biblioteca',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.download_outlined),
+                  selectedIcon: Icon(Icons.download),
+                  label: 'Añadir',
                 ),
               ],
-            ),
-
-            // Floating Bottom Mini Player
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: MiniPlayer(onExpand: _openFullscreenPlayer),
             ),
           ],
         ),
@@ -445,91 +344,106 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-class MusicSearchDelegate extends SearchDelegate {
-  final MusicStorageService storage;
-  final PlayerService player;
-
-  MusicSearchDelegate({required this.storage, required this.player});
+class _CreatePlaylistDialog extends StatefulWidget {
+  const _CreatePlaylistDialog();
 
   @override
-  ThemeData appBarTheme(BuildContext context) {
-    return ThemeData(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF030303),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF181818),
-        elevation: 0,
-      ),
-      inputDecorationTheme: const InputDecorationTheme(
-        hintStyle: TextStyle(color: Colors.white54),
-        border: InputBorder.none,
+  State<_CreatePlaylistDialog> createState() => _CreatePlaylistDialogState();
+}
+
+class _CreatePlaylistDialogState extends State<_CreatePlaylistDialog> {
+  final TextEditingController _controller = TextEditingController(text: '🔥 ');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final storage = Provider.of<MusicStorageService>(context, listen: false);
+    Navigator.pop(context);
+    await storage.createPlaylistFolder(text);
+    if (!messenger.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Carpeta y Playlist "$text" creada!',
+          style: AppTheme.itemSubtitle.copyWith(color: AppTheme.textPrimary),
+        ),
+        backgroundColor: AppTheme.surfaceHigh,
       ),
     );
   }
 
   @override
-  List<Widget>? buildActions(BuildContext context) {
-    return [
-      if (query.isNotEmpty)
-        IconButton(
-          icon: const Icon(Icons.clear, color: Colors.white),
-          onPressed: () => query = '',
-        ),
-    ];
-  }
-
-  @override
-  Widget? buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back, color: Colors.white),
-      onPressed: () => close(context, null),
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    return _buildResultsList(context);
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    return _buildResultsList(context);
-  }
-
-  Widget _buildResultsList(BuildContext context) {
-    final filteredSongs = storage.allSongs.where((s) {
-      final q = query.toLowerCase();
-      return s.title.toLowerCase().contains(q) ||
-          s.artist.toLowerCase().contains(q) ||
-          s.album.toLowerCase().contains(q);
-    }).toList();
-
-    if (filteredSongs.isEmpty) {
-      return const Center(
-        child: Text(
-          'No se encontraron canciones.',
-          style: TextStyle(color: Colors.white54),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: filteredSongs.length,
-      itemBuilder: (context, i) {
-        final song = filteredSongs[i];
-        return ListTile(
-          leading: const Icon(Icons.music_note, color: Colors.white),
-          title: Text(song.title, style: const TextStyle(color: Colors.white)),
-          subtitle: Text(
-            song.artist,
-            style: const TextStyle(color: Colors.white54),
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppTheme.surfaceHigh,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusArtwork),
+      ),
+      title: Text(
+        'Crear Playlist (Subcarpeta)',
+        style: AppTheme.itemTitle.copyWith(fontWeight: FontWeight.w600),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Escribe el nombre con tus emojis favoritos. Se creará una carpeta dentro de la app y actuará al instante como tu playlist:',
+            style: AppTheme.itemSubtitle.copyWith(height: 1.4),
           ),
-          onTap: () {
-            player.playSong(song, playlist: filteredSongs);
-            close(context, null);
-          },
-        );
-      },
+          const SizedBox(height: AppTheme.space12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            style: AppTheme.itemTitle.copyWith(fontWeight: FontWeight.w400),
+            decoration: InputDecoration(
+              hintText: 'Ej: 🏋️ Gym Motivación',
+              hintStyle: AppTheme.itemTitle.copyWith(
+                fontWeight: FontWeight.w400,
+                color: AppTheme.textMuted,
+              ),
+              filled: true,
+              fillColor: AppTheme.surfaceDark,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                borderSide: const BorderSide(color: AppTheme.outline),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                borderSide: const BorderSide(color: AppTheme.outline),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                borderSide: const BorderSide(color: AppTheme.textPrimary),
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancelar',
+            style: AppTheme.label.copyWith(color: AppTheme.textSecondary),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.textPrimary,
+            foregroundColor: AppTheme.bg,
+          ),
+          onPressed: _submit,
+          child: const Text('Crear'),
+        ),
+      ],
     );
   }
 }
