@@ -436,7 +436,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
             IconButton(
               onPressed: () => _showPlaylistOptionsMenu(context, playlist),
-              tooltip: 'Más opciones',
+              tooltip: 'Opciones de la playlist',
               icon: const Icon(
                 Icons.more_vert,
                 color: AppTheme.textPrimary,

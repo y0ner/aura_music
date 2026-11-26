@@ -129,7 +129,8 @@ void main() {
       await tester.pump();
 
       expect(find.byType(NowPlayingBars), findsOneWidget);
-      expect(find.bySemanticsLabel('Sonando ahora'), findsOneWidget);
+      // La fila fusiona su semántica: «Sonando ahora» forma parte del nombre accesible.
+      expect(find.bySemanticsLabel(RegExp('Sonando ahora')), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       await tester.runAsync(() => player.stopAndClear());

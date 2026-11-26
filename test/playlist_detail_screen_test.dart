@@ -95,7 +95,7 @@ void main() {
         expect(find.byTooltip('Aleatorio'), findsOneWidget);
         expect(find.byTooltip('Añadir a la fila'), findsOneWidget);
         expect(find.byTooltip('Volver'), findsOneWidget);
-        expect(find.byTooltip('Más opciones'), findsOneWidget);
+        expect(find.byTooltip('Opciones de la playlist'), findsOneWidget);
         expect(find.text('Coronamos'), findsOneWidget);
         expect(find.text('Hoy'), findsOneWidget);
         expect(find.text('Artista desconocido'), findsNothing);
