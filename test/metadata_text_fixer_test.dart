@@ -117,4 +117,110 @@ void main() {
       expect(MetadataTextFixer.titleFromFileName('.mp3'), '.mp3');
     });
   });
+
+  group('MetadataTextFixer.splitArtistTitle', () {
+    test('casos reales de YouTube y nombres locales', () {
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'The Weeknd - Call Out My Name (Official Video)',
+        ),
+        (artist: 'The Weeknd', title: 'Call Out My Name'),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'Maluma - Cuatro Babys (Official Video) ft. Trap Capos, Noriel, Bryant Myers, Juhn',
+        ),
+        (
+          artist: 'Maluma, Trap Capos, Noriel, Bryant Myers, Juhn',
+          title: 'Cuatro Babys',
+        ),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'DM - Mueka ft. Cosculluela [Audio Oficial]',
+        ),
+        (artist: 'DM, Cosculluela', title: 'Mueka'),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'Cris MJ, Kali Uchis, JHAYCO - SI NO ES CONTIGO REMIX',
+        ),
+        (
+          artist: 'Cris MJ, Kali Uchis, JHAYCO',
+          title: 'SI NO ES CONTIGO REMIX',
+        ),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle('Esto Es Así (Remix)'),
+        (artist: null, title: 'Esto Es Así (Remix)'),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle('Compa_Chappie'),
+        (artist: null, title: 'Compa_Chappie'),
+      );
+    });
+
+    test('mueve feat/ft/featuring dentro o fuera de paréntesis y quita basura', () {
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'Artista - Canción (feat. Invitado) [Official Visualizer]',
+        ),
+        (artist: 'Artista, Invitado', title: 'Canción'),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'Artista - Canción [ft Invitado] (Letra) (4K) (HD)',
+        ),
+        (artist: 'Artista, Invitado', title: 'Canción'),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'Artista - Canción (Remix) featuring Invitado [Clip Oficial]',
+        ),
+        (artist: 'Artista, Invitado', title: 'Canción (Remix)'),
+      );
+      expect(
+        MetadataTextFixer.splitArtistTitle(
+          'Canción Sola (Official Lyric Video)',
+        ),
+        (artist: null, title: 'Canción Sola'),
+      );
+    });
+
+    test('ignora separador si el artista supera 80 caracteres', () {
+      final longArtist = 'A' * 81;
+      expect(
+        MetadataTextFixer.splitArtistTitle('$longArtist - Título (Official Video)'),
+        (artist: null, title: '$longArtist - Título'),
+      );
+    });
+  });
+
+  group('MetadataTextFixer.splitArtists', () {
+    test('separa por comas, conjunciones y créditos de colaboración', () {
+      expect(
+        MetadataTextFixer.splitArtists('Cris MJ, Kali Uchis, JHAYCO'),
+        ['Cris MJ', 'Kali Uchis', 'JHAYCO'],
+      );
+      expect(
+        MetadataTextFixer.splitArtists(
+          'Lito Kirino y Anuel AA & Ozuna x Bad Bunny X Feid ft. Bryant Myers feat. Juhn',
+        ),
+        [
+          'Lito Kirino',
+          'Anuel AA',
+          'Ozuna',
+          'Bad Bunny',
+          'Feid',
+          'Bryant Myers',
+          'Juhn',
+        ],
+      );
+      expect(
+        MetadataTextFixer.splitArtists('  Artista A , ,  Artista B  '),
+        ['Artista A', 'Artista B'],
+      );
+      expect(MetadataTextFixer.splitArtists('   '), isEmpty);
+    });
+  });
 }
