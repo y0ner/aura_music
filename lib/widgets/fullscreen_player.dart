@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'cover_image.dart';
 import '../models/song_model.dart';
 import '../services/player_service.dart';
 import '../services/storage_service.dart';
@@ -89,10 +90,6 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
 
         _syncArtworkColor(song);
 
-        final position = Duration(
-          milliseconds:
-              (_dragValue ?? player.position.inMilliseconds.toDouble()).toInt(),
-        );
         final totalDuration = player.duration.inMilliseconds > 0
             ? player.duration
             : song.duration;
@@ -129,7 +126,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                   Expanded(child: _buildArtwork(context, song)),
                   _buildTitleAndArtist(song),
                   _buildActionPills(context, song),
-                  _buildProgressBar(context, player, position, totalDuration),
+                  _buildProgressBar(context, player, totalDuration),
                   _buildPlaybackControls(player),
                   _buildBottomTabs(),
                 ],
@@ -285,7 +282,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppTheme.radiusArtwork),
                 child: song.artworkBytes != null
-                    ? Image.memory(song.artworkBytes!, fit: BoxFit.cover)
+                    ? CoverImage(song.artworkBytes!, fit: BoxFit.cover)
                     : Container(
                         color: AppTheme.surfaceHigh,
                         child: const Center(
@@ -397,7 +394,26 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
     );
   }
 
+  /// Barra y tiempos: escuchan solo [PlayerService.positionListenable], así
+  /// el avance de la canción no redibuja el resto del reproductor.
   Widget _buildProgressBar(
+    BuildContext context,
+    PlayerService player,
+    Duration totalDuration,
+  ) {
+    return ValueListenableBuilder<Duration>(
+      valueListenable: player.positionListenable,
+      builder: (context, livePosition, _) {
+        final position = Duration(
+          milliseconds:
+              (_dragValue ?? livePosition.inMilliseconds.toDouble()).toInt(),
+        );
+        return _progressBarFor(context, player, position, totalDuration);
+      },
+    );
+  }
+
+  Widget _progressBarFor(
     BuildContext context,
     PlayerService player,
     Duration position,
@@ -680,7 +696,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                           height: AppTheme.songThumb,
                           color: AppTheme.chip,
                           child: song.artworkBytes != null
-                              ? Image.memory(
+                              ? CoverImage(
                                   song.artworkBytes!,
                                   fit: BoxFit.cover,
                                 )
@@ -749,7 +765,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                       color: AppTheme.textSecondary,
                       size: 24,
                     )
-                  : Image.memory(song.artworkBytes!, fit: BoxFit.cover),
+                  : CoverImage(song.artworkBytes!, fit: BoxFit.cover),
             ),
           ),
           const SizedBox(width: AppTheme.space16),
@@ -822,10 +838,13 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: LyricsView(
-                  song: song,
-                  position: player.position,
-                  onSeek: player.seek,
+                child: ValueListenableBuilder<Duration>(
+                  valueListenable: player.positionListenable,
+                  builder: (context, position, _) => LyricsView(
+                    song: song,
+                    position: position,
+                    onSeek: player.seek,
+                  ),
                 ),
               ),
               Positioned(

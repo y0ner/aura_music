@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'cover_image.dart';
 import '../models/song_model.dart';
 import '../services/player_service.dart';
 import '../theme/app_theme.dart';
@@ -106,7 +107,7 @@ class SongTile extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       if (hasArtwork)
-                        Image.memory(
+                        CoverImage(
                           song.artworkBytes!,
                           width: AppTheme.songThumb,
                           height: AppTheme.songThumb,
