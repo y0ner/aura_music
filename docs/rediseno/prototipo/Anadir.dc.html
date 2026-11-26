@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Aura · Añadir desde YouTube</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#030303}
+a{color:#fff;text-decoration:none}a:hover{color:#fff}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+input::placeholder{color:#8C8C8C}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #030303; color: #ffffff; font-family: Roboto, system-ui, sans-serif">
+
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 16px">
+
+    <header style="padding: 20px 0 0">
+      <h1 style="margin: 0; font-family: Poppins, sans-serif; font-weight: 600; font-size: 24px; letter-spacing: -0.3px">Añadir música</h1>
+      <p style="margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: #AAAAAA">Pega un enlace de YouTube. La canción o la playlist queda en tu biblioteca, sin conexión.</p>
+    </header>
+
+    <label for="link" style="margin-top: 20px; font-size: 14px; font-weight: 500">Enlace de YouTube</label>
+    <div style="margin-top: 8px; height: 52px; border-radius: 26px; background: #212121; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 16px">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#AAAAAA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+      <input id="link" placeholder="youtube.com/watch?v=…" value="{{ link }}" onChange="{{ onType }}" style="flex: 1; min-width: 0; height: 44px; background: none; border: 0; outline: none; color: #ffffff; font: 400 16px Roboto, sans-serif">
+      <sc-if value="{{ hasLink }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ clear }}" aria-label="Borrar enlace" style="width: 44px; height: 44px; border: 0; background: none; color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </sc-if>
+      <sc-if value="{{ noLink }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ paste }}" style="height: 40px; padding: 0 14px; border-radius: 20px; border: 0; background: #ffffff; color: #030303; display: flex; align-items: center; gap: 6px; font: 500 14px Roboto, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg>
+          Pegar
+        </button>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ hasLink }}" hint-placeholder-val="{{ true }}">
+      <div style="margin-top: 16px; border-radius: 16px; background: #181818; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <img src="/_blob/f87229c7785c6ccda8f1f6f5f86d7696" alt="" style="width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex: none">
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 4px">
+            <span class="ell" style="font-size: 16px; font-weight: 500">Te Robo</span>
+            <span style="font-size: 14px; color: #AAAAAA">Canción · con letra disponible</span>
+          </div>
+        </div>
+        <button style="height: 48px; border-radius: 12px; border: 1px solid #333333; background: #212121; color: #ffffff; display: flex; align-items: center; gap: 10px; padding: 0 12px; font: 400 14px Roboto, sans-serif; cursor: pointer; text-align: left">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#AAAAAA" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></svg>
+          <span style="flex: 1; min-width: 0"><span style="color: #AAAAAA">Guardar en </span>Trap Latino Malandro</span>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+        </button>
+        <button style="height: 48px; border-radius: 24px; border: 0; background: #ffffff; color: #030303; display: flex; align-items: center; justify-content: center; gap: 8px; font: 500 16px Roboto, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg>
+          Descargar
+        </button>
+      </div>
+    </sc-if>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 20px">
+      <h2 style="margin: 0; font-size: 16px; font-weight: 500">Cola de descargas</h2>
+      <button style="height: 44px; padding: 0 4px; border: 0; background: none; color: #AAAAAA; font: 500 14px Roboto, sans-serif; cursor: pointer">Limpiar terminadas</button>
+    </div>
+
+    <ul style="list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+      <li style="display: flex; align-items: center; gap: 12px; min-height: 56px">
+        <span style="width: 48px; height: 48px; border-radius: 4px; overflow: hidden; flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr))" aria-hidden="true">
+          <img src="/_blob/bdc1c5d995dc6608cfc0210e3ce0504a" alt="" style="width: 24px; height: 24px; object-fit: cover; display: block">
+          <img src="/_blob/2705dedb4abcfc0dfbcfa1ce9a0ad861" alt="" style="width: 24px; height: 24px; object-fit: cover; display: block">
+          <img src="/_blob/6af0aa8c7ad1efe8a4ba24b9d430e397" alt="" style="width: 24px; height: 24px; object-fit: cover; display: block">
+          <img src="/_blob/1eb9758c5e022da3340c24f14aadcd5b" alt="" style="width: 24px; height: 24px; object-fit: cover; display: block">
+        </span>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+          <span class="ell" style="font-size: 16px; font-weight: 500">#5 Trap Clasico 💥🥵</span>
+          <span style="font-size: 14px; color: #AAAAAA">Descargando 9 de 14</span>
+          <span style="position: relative; height: 4px; border-radius: 2px; background: #333333; overflow: hidden" aria-hidden="true">
+            <span style="position: absolute; left: 0; top: 0; bottom: 0; width: 64%; border-radius: 2px; background: {{ accent }}"></span>
+          </span>
+        </div>
+        <button aria-label="Cancelar descarga" style="width: 44px; height: 44px; border: 0; background: none; color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </li>
+      <li style="display: flex; align-items: center; gap: 12px; min-height: 56px">
+        <img src="/_blob/91b054cae00beb477c4fb03a8a287dff" alt="" style="width: 48px; height: 48px; border-radius: 4px; object-fit: cover; flex: none">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+          <span class="ell" style="font-size: 16px; font-weight: 500">Las Muñequitas (Remix)</span>
+          <span style="font-size: 14px; color: #AAAAAA">En cola · posición 2</span>
+        </div>
+        <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#AAAAAA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12"></path><path d="M6 22h12"></path><path d="M7 2v4l5 6-5 6v4"></path><path d="M17 2v4l-5 6 5 6v4"></path></svg>
+        </span>
+      </li>
+      <li style="display: flex; align-items: center; gap: 12px; min-height: 56px">
+        <img src="/_blob/46b943a622a7ed93498609dbb8721149" alt="" style="width: 48px; height: 48px; border-radius: 4px; object-fit: cover; flex: none">
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+          <span class="ell" style="font-size: 16px; font-weight: 500">OH SHIT</span>
+          <span style="font-size: 14px; color: #AAAAAA">En tu biblioteca · con letra</span>
+        </div>
+        <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center">
+          <svg viewBox="0 0 24 24" width="22" height="22" role="img" aria-label="Completada"><circle cx="12" cy="12" r="10" fill="#ffffff"></circle><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="#030303" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </span>
+      </li>
+    </ul>
+  </div>
+
+  <a href="Reproductor.dc.html" aria-label="Abrir reproductor: Coronamos" style="position: absolute; left: 0; right: 0; bottom: 72px; height: 64px; background: #1F1F1F; display: flex; align-items: center; gap: 12px; padding: 0 4px 0 12px; box-sizing: border-box">
+    <span style="position: absolute; left: 0; top: 0; height: 2px; width: 100%; background: #3A3A3A" aria-hidden="true"></span>
+    <span style="position: absolute; left: 0; top: 0; height: 2px; width: 38%; background: {{ accent }}" aria-hidden="true"></span>
+    <img src="/_blob/12b2d474d815a59967247ceee1d7e204" alt="" style="width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none">
+    <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+      <span class="ell" style="font-size: 16px; font-weight: 500">Coronamos</span>
+      <span class="ell" style="font-size: 14px; color: #AAAAAA">Lito Kirino y Anuel AA</span>
+    </span>
+    <span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="#ffffff"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+    </span>
+    <span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="#ffffff"><path d="M5 5.5v13l10-6.5z"></path><rect x="16.5" y="5.5" width="2.5" height="13" rx="1"></rect></svg>
+    </span>
+  </a>
+
+  <nav aria-label="Navegación principal" style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #0F0F0F; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-bottom: 8px; box-sizing: border-box">
+    <a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6.5v-6h-5v6H3z"></path></svg>
+      <span style="font-size: 12px">Inicio</span>
+    </a>
+    <a href="Buscar.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <span style="font-size: 12px">Buscar</span>
+    </a>
+    <a href="Biblioteca.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"></path></svg>
+      <span style="font-size: 12px">Biblioteca</span>
+    </a>
+    <a href="Anadir.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg>
+      <span style="font-size: 12px; font-weight: 700">Añadir</span>
+    </a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF3D7F","options":["#FF3D7F","#8B5CFF","#FF8A3D","#FFFFFF"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { link: 'youtu.be/f4zTKXvK7Sc' };
+  }
+  renderVals() {
+    const has = this.state.link.trim().length > 0;
+    return {
+      accent: this.props.accent ?? '#FF3D7F',
+      link: this.state.link,
+      hasLink: has,
+      noLink: !has,
+      onType: (e) => this.setState({ link: e.target.value }),
+      clear: () => this.setState({ link: '' }),
+      paste: () => this.setState({ link: 'youtu.be/f4zTKXvK7Sc' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

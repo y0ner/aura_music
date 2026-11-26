@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Aura · Biblioteca</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#030303}
+a{color:#fff;text-decoration:none}a:hover{color:#fff}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #030303; color: #ffffff; font-family: Roboto, system-ui, sans-serif">
+
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column">
+
+    <header style="display: flex; align-items: center; justify-content: space-between; padding: 16px 8px 0 16px">
+      <h1 style="margin: 0; font-family: Poppins, sans-serif; font-weight: 600; font-size: 24px; letter-spacing: -0.3px">Biblioteca</h1>
+      <div style="display: flex">
+        <a href="Buscar.dc.html" aria-label="Buscar en la biblioteca" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        </a>
+        <button aria-label="Actualizar biblioteca" style="width: 48px; height: 48px; border: 0; background: none; color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"></path><path d="M3 21v-5h5"></path><path d="M3 12A9 9 0 0 1 18.5 5.8L21 8"></path><path d="M21 3v5h-5"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <div style="display: flex; gap: 8px; padding: 12px 16px; overflow: hidden">
+      <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+        <button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px 4px 8px">
+      <button style="height: 44px; padding: 0 8px; border: 0; background: none; color: #ffffff; display: flex; align-items: center; gap: 8px; font: 500 14px Roboto, sans-serif; cursor: pointer">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M6 12h12"></path><path d="M10 18h4"></path></svg>
+        Recientes
+      </button>
+      <button aria-label="Ver como cuadrícula" style="width: 48px; height: 48px; border: 0; background: none; color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"></rect><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"></rect><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"></rect><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"></rect></svg>
+      </button>
+    </div>
+
+    <ul style="list-style: none; margin: 0; padding: 0">
+      <li>
+        <a href="MeGusta.dc.html" style="height: 72px; display: flex; align-items: center; gap: 16px; padding: 0 16px">
+          <span style="width: 56px; height: 56px; border-radius: 6px; flex: none; background: linear-gradient(140deg, #FF8A3D 0%, #FF3D7F 48%, #8B5CFF 100%); display: flex; align-items: center; justify-content: center" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="#ffffff"><path d="M2 21h3.5V10H2zM22 11.2c0-1.1-.9-2-2-2h-5.6l.9-4.3v-.3c0-.4-.2-.8-.4-1.1L13.8 2.4 7.6 8.6c-.4.4-.6.9-.6 1.4v9c0 1.1.9 2 2 2h8.7c.8 0 1.5-.5 1.8-1.2l2.4-6.3c.1-.2.1-.5.1-.7z"></path></svg>
+          </span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+            <span class="ell" style="font-size: 16px; font-weight: 500">Música que te gustó</span>
+            <span style="display: flex; align-items: center; gap: 4px; font-size: 14px; color: #AAAAAA">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="#AAAAAA" aria-label="Fijada" role="img"><path d="M16 3v2h-1v6l2 3v2h-4v5l-1 1-1-1v-5H7v-2l2-3V5H8V3z"></path></svg>
+              Autogenerada · 6 canciones
+            </span>
+          </span>
+        </a>
+      </li>
+      <sc-for list="{{ lists }}" as="p" hint-placeholder-count="5">
+        <li>
+          <a href="{{ p.href }}" style="height: 72px; display: flex; align-items: center; gap: 16px; padding: 0 4px 0 16px">
+            <span style="width: 56px; height: 56px; border-radius: 6px; overflow: hidden; flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr))" aria-hidden="true">
+              <img src="{{ p.a }}" alt="" style="width: 28px; height: 28px; object-fit: cover; display: block">
+              <img src="{{ p.b }}" alt="" style="width: 28px; height: 28px; object-fit: cover; display: block">
+              <img src="{{ p.c }}" alt="" style="width: 28px; height: 28px; object-fit: cover; display: block">
+              <img src="{{ p.d }}" alt="" style="width: 28px; height: 28px; object-fit: cover; display: block">
+            </span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+              <span class="ell" style="font-size: 16px; font-weight: 500">{{ p.name }}</span>
+              <span class="ell" style="font-size: 14px; color: #AAAAAA">{{ p.sub }}</span>
+            </span>
+            <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>
+            </span>
+          </a>
+        </li>
+      </sc-for>
+    </ul>
+  </div>
+
+  <button style="position: absolute; right: 16px; bottom: 152px; height: 48px; padding: 0 20px 0 16px; border-radius: 24px; border: 0; background: #ffffff; color: #030303; display: flex; align-items: center; gap: 8px; font: 500 14px Roboto, sans-serif; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.5)">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+    Nueva playlist
+  </button>
+
+  <a href="Reproductor.dc.html" aria-label="Abrir reproductor: Coronamos" style="position: absolute; left: 0; right: 0; bottom: 72px; height: 64px; background: #1F1F1F; display: flex; align-items: center; gap: 12px; padding: 0 4px 0 12px; box-sizing: border-box">
+    <span style="position: absolute; left: 0; top: 0; height: 2px; width: 100%; background: #3A3A3A" aria-hidden="true"></span>
+    <span style="position: absolute; left: 0; top: 0; height: 2px; width: 38%; background: {{ accent }}" aria-hidden="true"></span>
+    <img src="/_blob/12b2d474d815a59967247ceee1d7e204" alt="" style="width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none">
+    <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+      <span class="ell" style="font-size: 16px; font-weight: 500">Coronamos</span>
+      <span class="ell" style="font-size: 14px; color: #AAAAAA">Lito Kirino y Anuel AA</span>
+    </span>
+    <span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="#ffffff"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+    </span>
+    <span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="#ffffff"><path d="M5 5.5v13l10-6.5z"></path><rect x="16.5" y="5.5" width="2.5" height="13" rx="1"></rect></svg>
+    </span>
+  </a>
+
+  <nav aria-label="Navegación principal" style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #0F0F0F; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-bottom: 8px; box-sizing: border-box">
+    <a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6.5v-6h-5v6H3z"></path></svg>
+      <span style="font-size: 12px">Inicio</span>
+    </a>
+    <a href="Buscar.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <span style="font-size: 12px">Buscar</span>
+    </a>
+    <a href="Biblioteca.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="#ffffff" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"></path></svg>
+      <span style="font-size: 12px; font-weight: 700">Biblioteca</span>
+    </a>
+    <a href="Anadir.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg>
+      <span style="font-size: 12px">Añadir</span>
+    </a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF3D7F","options":["#FF3D7F","#8B5CFF","#FF8A3D","#FFFFFF"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { chip: 0 };
+  }
+  renderVals() {
+    const labels = ['Playlists', 'Canciones', 'Artistas', 'Carpetas'];
+    const chips = labels.map((label, i) => ({
+      label,
+      pick: () => this.setState({ chip: i }),
+      style: 'flex: none; height: 40px; padding: 0 14px; border-radius: 8px; border: 0; cursor: pointer; font: 500 14px Roboto, sans-serif; ' +
+        (this.state.chip === i ? 'background: #ffffff; color: #030303' : 'background: #272727; color: #ffffff'),
+    }));
+    const lists = [
+      { name: 'Recién añadidas', sub: 'Autogenerada · Últimas descargas', href: 'Playlist.dc.html',
+        a: '/_blob/46b943a622a7ed93498609dbb8721149', b: '/_blob/f87229c7785c6ccda8f1f6f5f86d7696', c: '/_blob/91b054cae00beb477c4fb03a8a287dff', d: '/_blob/2f2e3efb35d17cabdb6b87961ba253e2' },
+      { name: 'Trap Latino Malandro', sub: 'Playlist · 12 canciones', href: 'Playlist.dc.html',
+        a: '/_blob/37ffe2c2b0774b4ca275e0ad779c3e46', b: '/_blob/12b2d474d815a59967247ceee1d7e204', c: '/_blob/20b0e35b8cf39a683e0c8a4fb48079c3', d: '/_blob/875ead378e8e6030beffc42f5841e2ba' },
+      { name: '#1 Urbano 😏🔥💯', sub: 'Playlist · 39 canciones', href: 'Playlist.dc.html',
+        a: '/_blob/42760c6db9f581fc7147d610b99bc9d8', b: '/_blob/5facff90f1dfb7437c1ac0124b1a9d0e', c: '/_blob/bdebc9eff9e3f72e95ccee6c2874a43e', d: '/_blob/e87deaee074bd35ff66918a12c48aec9' },
+      { name: '#5 Trap Clasico 💥🥵', sub: 'Playlist · 14 canciones', href: 'Playlist.dc.html',
+        a: '/_blob/bdc1c5d995dc6608cfc0210e3ce0504a', b: '/_blob/2705dedb4abcfc0dfbcfa1ce9a0ad861', c: '/_blob/6af0aa8c7ad1efe8a4ba24b9d430e397', d: '/_blob/1eb9758c5e022da3340c24f14aadcd5b' },
+      { name: '#34 Synth-pop', sub: 'Playlist · 5 canciones', href: 'Playlist.dc.html',
+        a: '/_blob/72c058f1bd2d7ecf53a7c5dc96085b4f', b: '/_blob/ba2c27bac4e8d621fe5432493cd5f396', c: '/_blob/1817a958e1596a83c70be733d332ee4e', d: '/_blob/b0aa710cc51f37bdb4ed4484318b551f' },
+    ];
+    return { accent: this.props.accent ?? '#FF3D7F', chips, lists };
+  }
+}
+</script>
+</body>
+</html>
