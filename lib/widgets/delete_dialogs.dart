@@ -4,6 +4,7 @@ import '../models/playlist_model.dart';
 import '../models/song_model.dart';
 import '../services/player_service.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 
 /// Diálogos de confirmación para eliminar álbumes (carpetas) y canciones.
 ///
@@ -24,34 +25,35 @@ class DeleteDialogs {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF212121),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text(
+        backgroundColor: AppTheme.surfaceHigh,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        ),
+        title: Text(
           '¿Eliminar álbum?',
-          style: TextStyle(color: Colors.white, fontSize: 18),
+          style: AppTheme.itemTitle.copyWith(fontWeight: FontWeight.w600),
         ),
         content: Text(
           '«${playlist.name}» y sus ${playlist.trackCount} pista(s) se eliminarán del disco. Esta acción no se puede deshacer.',
-          style: const TextStyle(
-            color: Color(0xFFAAAAAA),
-            fontSize: 13.5,
-            height: 1.45,
-          ),
+          style: AppTheme.itemSubtitle.copyWith(height: 1.45),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
+            child: Text(
               'Cancelar',
-              style: TextStyle(color: Colors.white54),
+              style: AppTheme.label.copyWith(color: AppTheme.textSecondary),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF4040)),
-            child: const Text(
+            style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
+            child: Text(
               'Eliminar',
-              style: TextStyle(color: Color(0xFFFF4040), fontWeight: FontWeight.bold),
+              style: AppTheme.label.copyWith(
+                color: AppTheme.danger,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -80,8 +82,9 @@ class DeleteDialogs {
             ok
                 ? 'Álbum «${playlist.name}» eliminado'
                 : 'No se pudo eliminar el álbum',
+            style: AppTheme.itemSubtitle.copyWith(color: AppTheme.textPrimary),
           ),
-          backgroundColor: const Color(0xFF333333),
+          backgroundColor: AppTheme.surfaceHigh,
         ),
       );
     }
@@ -98,34 +101,35 @@ class DeleteDialogs {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF212121),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text(
+        backgroundColor: AppTheme.surfaceHigh,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        ),
+        title: Text(
           '¿Eliminar canción?',
-          style: TextStyle(color: Colors.white, fontSize: 18),
+          style: AppTheme.itemTitle.copyWith(fontWeight: FontWeight.w600),
         ),
         content: Text(
           '«${song.title}» se eliminará del disco. Esta acción no se puede deshacer.',
-          style: const TextStyle(
-            color: Color(0xFFAAAAAA),
-            fontSize: 13.5,
-            height: 1.45,
-          ),
+          style: AppTheme.itemSubtitle.copyWith(height: 1.45),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
+            child: Text(
               'Cancelar',
-              style: TextStyle(color: Colors.white54),
+              style: AppTheme.label.copyWith(color: AppTheme.textSecondary),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF4040)),
-            child: const Text(
+            style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
+            child: Text(
               'Eliminar',
-              style: TextStyle(color: Color(0xFFFF4040), fontWeight: FontWeight.bold),
+              style: AppTheme.label.copyWith(
+                color: AppTheme.danger,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -153,8 +157,9 @@ class DeleteDialogs {
         SnackBar(
           content: Text(
             ok ? 'Canción «${song.title}» eliminada' : 'No se pudo eliminar la canción',
+            style: AppTheme.itemSubtitle.copyWith(color: AppTheme.textPrimary),
           ),
-          backgroundColor: const Color(0xFF333333),
+          backgroundColor: AppTheme.surfaceHigh,
         ),
       );
     }
