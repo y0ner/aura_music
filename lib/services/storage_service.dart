@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -65,13 +66,36 @@ class MusicStorageService extends ChangeNotifier {
        _stateStore = stateStore ?? LibraryStateStore();
 
   Directory? get rootMusicDirectory => _rootMusicDirectory;
+  /// Listas derivadas (recientes, top de artistas, mixes, Me gusta) ya
+  /// calculadas. Las pantallas las piden en cada redibujo; se recalculan
+  /// solo cuando la biblioteca avisa un cambio (ver [notifyListeners]).
+  final Map<Object, Object?> _derivedCache = {};
+
+  T _memo<T>(Object key, T Function() compute) {
+    if (_derivedCache.containsKey(key)) return _derivedCache[key] as T;
+    final value = compute();
+    _derivedCache[key] = value;
+    return value;
+  }
+
+  /// Todo cambio de datos pasa por aquí: vacía la caché de listas derivadas
+  /// antes de avisar a las pantallas.
+  @override
+  void notifyListeners() {
+    _derivedCache.clear();
+    super.notifyListeners();
+  }
+
   List<Playlist> get playlists => _playlists;
   List<Song> get allSongs => _allSongs;
   bool get isLoading => _isLoading;
   String get statusMessage => _statusMessage;
   LibraryStateStore get stateStore => _stateStore;
 
-  Playlist? get likedSongsPlaylist {
+  Playlist? get likedSongsPlaylist =>
+      _memo('likedSongsPlaylist', _computeLikedSongsPlaylist);
+
+  Playlist? _computeLikedSongsPlaylist() {
     final liked = _allSongs.where((s) => s.isFavorite).toList();
     return Playlist(
       id: 'liked_songs_auto',
@@ -272,6 +296,7 @@ class MusicStorageService extends ChangeNotifier {
   /// Rescan the directory and subfolders
   Future<void> scanLibrary() async {
     if (_rootMusicDirectory == null) return;
+    final watch = Stopwatch()..start();
     _isLoading = true;
     _statusMessage = 'Escaneando carpetas de música...';
     notifyListeners();
@@ -345,6 +370,10 @@ class MusicStorageService extends ChangeNotifier {
       _statusMessage = 'Error al escanear: $e';
     } finally {
       _isLoading = false;
+      debugPrint(
+        'aura: escaneo de ${_allSongs.length} canciones en '
+        '${watch.elapsedMilliseconds} ms',
+      );
       notifyListeners();
     }
   }
@@ -365,30 +394,57 @@ class MusicStorageService extends ChangeNotifier {
       '.ogg',
     ];
 
+    final paths = <String>[];
     try {
-      final files = dir.listSync();
+      final files = await dir.list(followLinks: false).toList();
       for (final file in files) {
         if (file is File) {
           final dotIndex = file.path.lastIndexOf('.');
           if (dotIndex < 0) continue;
           final ext = file.path.toLowerCase().substring(dotIndex);
-          if (validExtensions.contains(ext)) {
-            final song = await _parseAudioFile(
-              file,
-              defaultCategory,
-              artworkDir,
-            );
-            songs.add(song);
-          }
+          if (validExtensions.contains(ext)) paths.add(file.path);
         }
       }
     } catch (e) {
       debugPrint('Error reading files in ${dir.path}: $e');
     }
+    if (paths.isEmpty) return songs;
+
+    // Leer etiquetas y carátulas es trabajo síncrono y pesado: se hace en
+    // otro isolate para que la interfaz no se congele durante el escaneo.
+    try {
+      songs.addAll(
+        await _parseInBackground(paths, defaultCategory, artworkDir?.path),
+      );
+      // Los favoritos viven en el store de este isolate: se aplican al volver.
+      for (final song in songs) {
+        song.isFavorite = _stateStore.isFavorite(
+          LibraryStateStore.keyForPath(song.filePath),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error escaneando ${dir.path} en segundo plano: $e');
+    }
     return songs;
   }
 
-  Future<Song> _parseAudioFile(
+  /// Lee todas las canciones de [paths] (se ejecuta dentro de `Isolate.run`).
+  static Future<List<Song>> _parseAudioFiles(
+    List<String> paths,
+    String category,
+    String? artworkDirPath,
+  ) async {
+    final artworkDir = artworkDirPath == null
+        ? null
+        : Directory(artworkDirPath);
+    final songs = <Song>[];
+    for (final path in paths) {
+      songs.add(await _parseAudioFile(File(path), category, artworkDir));
+    }
+    return songs;
+  }
+
+  static Future<Song> _parseAudioFile(
     File file,
     String category, [
     Directory? artworkDir,
@@ -489,9 +545,6 @@ class MusicStorageService extends ChangeNotifier {
       duration: duration,
       artworkBytes: artwork,
       isExplicit: isExplicit,
-      isFavorite: _stateStore.isFavorite(
-        LibraryStateStore.keyForPath(file.path),
-      ),
       category: category,
       addedAt: addedAt,
     );
@@ -531,7 +584,19 @@ class MusicStorageService extends ChangeNotifier {
     );
   }
 
-  List<Song> get recentlyPlayed {
+  List<Song> get recentlyPlayed =>
+      _memo('recentlyPlayed', _computeRecentlyPlayed);
+
+  /// La misma canción puede estar en dos carpetas (mismo id de video): en las
+  /// listas derivadas se muestra una sola vez, la primera según el orden.
+  static Iterable<Song> _uniqueByKey(Iterable<Song> songs) sync* {
+    final seen = <String>{};
+    for (final song in songs) {
+      if (seen.add(LibraryStateStore.keyFor(song))) yield song;
+    }
+  }
+
+  List<Song> _computeRecentlyPlayed() {
     final items = _allSongs
         .where(
           (song) =>
@@ -539,10 +604,12 @@ class MusicStorageService extends ChangeNotifier {
         )
         .toList();
     items.sort(_compareByLastPlayedDesc);
-    return items.take(_maxDerivedSongs).toList();
+    return _uniqueByKey(items).take(_maxDerivedSongs).toList();
   }
 
-  List<Song> get mostPlayed {
+  List<Song> get mostPlayed => _memo('mostPlayed', _computeMostPlayed);
+
+  List<Song> _computeMostPlayed() {
     final items = _allSongs
         .where(
           (song) => _stateStore.playCount(LibraryStateStore.keyFor(song)) >= 1,
@@ -555,10 +622,13 @@ class MusicStorageService extends ChangeNotifier {
       if (countCmp != 0) return countCmp;
       return _compareByLastPlayedDesc(a, b);
     });
-    return items.take(_maxDerivedSongs).toList();
+    return _uniqueByKey(items).take(_maxDerivedSongs).toList();
   }
 
-  List<Song> get recentlyAdded {
+  List<Song> get recentlyAdded =>
+      _memo('recentlyAdded', _computeRecentlyAdded);
+
+  List<Song> _computeRecentlyAdded() {
     final items = List<Song>.from(_allSongs);
     items.sort((a, b) {
       final addedA = a.addedAt;
@@ -571,10 +641,13 @@ class MusicStorageService extends ChangeNotifier {
       }
       return 0;
     });
-    return items.take(_maxDerivedSongs).toList();
+    return _uniqueByKey(items).take(_maxDerivedSongs).toList();
   }
 
-  Playlist? autoPlaylist(AutoPlaylistKind kind) {
+  Playlist? autoPlaylist(AutoPlaylistKind kind) =>
+      _memo(('autoPlaylist', kind), () => _computeAutoPlaylist(kind));
+
+  Playlist? _computeAutoPlaylist(AutoPlaylistKind kind) {
     final ({String id, String name, List<Song> songs}) spec = switch (kind) {
       AutoPlaylistKind.recentlyAdded => (
         id: 'auto_recently_added',
@@ -684,7 +757,9 @@ class MusicStorageService extends ChangeNotifier {
     return pending;
   }
 
-  List<String> get topArtists {
+  List<String> get topArtists => _memo('topArtists', _computeTopArtists);
+
+  List<String> _computeTopArtists() {
     final counts = <String, ({String display, int count})>{};
     for (final song in _allSongs) {
       if (!song.hasKnownArtist) continue;
@@ -712,7 +787,12 @@ class MusicStorageService extends ChangeNotifier {
     return entries.take(_maxTopArtists).map((e) => e.display).toList();
   }
 
-  Playlist? artistMix(String artist) {
+  Playlist? artistMix(String artist) => _memo(
+    ('artistMix', artist.trim().toLowerCase()),
+    () => _computeArtistMix(artist),
+  );
+
+  Playlist? _computeArtistMix(String artist) {
     final trimmed = artist.trim();
     final target = trimmed.toLowerCase();
     if (target.isEmpty || target == Song.unknownArtist.toLowerCase()) {
@@ -736,3 +816,14 @@ class MusicStorageService extends ChangeNotifier {
     );
   }
 }
+
+/// Corre el análisis de archivos en otro isolate. Es una función de nivel
+/// superior a propósito: así el cierre no arrastra el servicio (que no se
+/// puede enviar entre isolates).
+Future<List<Song>> _parseInBackground(
+  List<String> paths,
+  String category,
+  String? artworkDirPath,
+) => Isolate.run(
+  () => MusicStorageService._parseAudioFiles(paths, category, artworkDirPath),
+);

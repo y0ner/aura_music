@@ -27,7 +27,9 @@ class AuraAudioHandler extends BaseAudioHandler with SeekHandler {
       onError: (Object e) => debugPrint('Error de playback: $e'),
     );
     player.playerStateStream.listen((_) => _broadcast());
-    player.positionStream.listen((_) => _broadcast());
+    // Sin escuchar positionStream: el sistema calcula la posición a partir de
+    // updatePosition + velocidad. Reenviar el estado en cada avance (≈5/s)
+    // hacía trabajar sin parar a systemui, system_server y MiCast.
     player.durationStream.listen((_) => _updateMediaItem());
     player.sequenceStateStream.listen((_) => _updateMediaItem());
   }

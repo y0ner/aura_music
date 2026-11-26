@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'cover_image.dart';
 import '../services/player_service.dart';
 import '../theme/app_theme.dart';
 import 'explicit_badge.dart';
@@ -50,11 +51,14 @@ class MiniPlayer extends StatelessWidget {
                   left: 0,
                   right: 0,
                   height: 2,
-                  child: LinearProgressIndicator(
-                    value: player.progressRatio,
-                    backgroundColor: AppTheme.outline,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      AppTheme.accent,
+                  child: ValueListenableBuilder<Duration>(
+                    valueListenable: player.positionListenable,
+                    builder: (context, _, _) => LinearProgressIndicator(
+                      value: player.progressRatio,
+                      backgroundColor: AppTheme.outline,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppTheme.accent,
+                      ),
                     ),
                   ),
                 ),
@@ -74,7 +78,7 @@ class MiniPlayer extends StatelessWidget {
                           height: _miniPlayerThumbSize,
                           color: AppTheme.chip,
                           child: currentSong.artworkBytes != null
-                              ? Image.memory(
+                              ? CoverImage(
                                   currentSong.artworkBytes!,
                                   fit: BoxFit.cover,
                                 )

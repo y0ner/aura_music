@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'cover_image.dart';
 import '../models/playlist_model.dart';
 import '../theme/app_theme.dart';
 
@@ -91,7 +92,7 @@ class PlaylistArtwork extends StatelessWidget {
   }
 
   Widget _artworkImage(Uint8List bytes) {
-    return Image.memory(
+    return CoverImage(
       bytes,
       fit: BoxFit.cover,
       width: double.infinity,

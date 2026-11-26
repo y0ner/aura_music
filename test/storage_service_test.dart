@@ -238,4 +238,42 @@ void main() {
       expect(storage.topArtists, hasLength(10));
     },
   );
+
+  test(
+    'la misma canción en dos carpetas aparece una sola vez en las listas',
+    () async {
+      await createEmptyM4a('Trap', 'GALACTICOS [lsAr91prCBo].m4a');
+      await createEmptyM4a('Urbano', 'GALACTICOS [lsAr91prCBo].m4a');
+      final storage = createStorage();
+      await storage.setCustomRootDirectory(rootDir.path);
+      expect(storage.allSongs, hasLength(2));
+
+      for (final song in storage.allSongs) {
+        storage.recordPlay(song);
+      }
+      await storage.stateStore.flush();
+
+      expect(storage.recentlyPlayed, hasLength(1));
+      expect(storage.mostPlayed, hasLength(1));
+      expect(storage.recentlyAdded, hasLength(1));
+    },
+  );
+
+  test('las listas derivadas se recalculan tras cada cambio', () async {
+    await createEmptyM4a('Pop', 'Uno [aaaaaaaaaaa].m4a');
+    await createEmptyM4a('Pop', 'Dos [bbbbbbbbbbb].m4a');
+    final storage = createStorage();
+    await storage.setCustomRootDirectory(rootDir.path);
+
+    expect(storage.recentlyPlayed, isEmpty);
+    expect(identical(storage.topArtists, storage.topArtists), isTrue);
+
+    storage.recordPlay(storage.allSongs.first);
+    await storage.stateStore.flush();
+    expect(storage.recentlyPlayed, hasLength(1));
+
+    final liked = storage.allSongs.last;
+    await storage.toggleFavorite(liked);
+    expect(storage.likedSongsPlaylist!.songs, [liked]);
+  });
 }
