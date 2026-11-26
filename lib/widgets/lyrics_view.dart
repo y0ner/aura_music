@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/lyrics_model.dart';
 import '../models/song_model.dart';
 import '../services/lyrics_service.dart';
+import '../theme/app_theme.dart';
 
 class LyricsView extends StatefulWidget {
   final Song song;
@@ -83,22 +84,24 @@ class _LyricsViewState extends State<LyricsView> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF292211), Color(0xFF191919), Color(0xFF302027)],
+          colors: [AppTheme.surfaceHigh, AppTheme.surface, AppTheme.bg],
         ),
       ),
       child: FutureBuilder<ParsedLyrics?>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: Colors.white54),
-                  SizedBox(height: 16),
+                  const CircularProgressIndicator(color: AppTheme.textSecondary),
+                  const SizedBox(height: AppTheme.space16),
                   Text(
                     'Buscando letra…',
-                    style: TextStyle(color: Colors.white60, fontSize: 16),
+                    style: AppTheme.itemTitle.copyWith(
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -106,30 +109,36 @@ class _LyricsViewState extends State<LyricsView> {
           }
           final lyrics = snapshot.data;
           if (lyrics == null || lyrics.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(AppTheme.space24),
                 child: Text(
                   'Letra no disponible para esta canción.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white60, fontSize: 18),
+                  style: AppTheme.itemTitle.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ),
             );
           }
           return LayoutBuilder(
             builder: (context, constraints) {
-              final fontSize = constraints.maxWidth < 600 ? 26.0 : 32.0;
-              final horizontal = constraints.maxWidth < 600 ? 28.0 : 44.0;
-              final style = TextStyle(
+              final fontSize = constraints.maxWidth < 600
+                  ? AppTheme.titleLarge.fontSize!
+                  : AppTheme.space32;
+              final horizontal = constraints.maxWidth < 600
+                  ? AppTheme.space24
+                  : AppTheme.space32 + AppTheme.space12;
+              final style = AppTheme.titleLarge.copyWith(
                 fontSize: fontSize,
-                height: 1.22,
+                height: 1.3,
                 fontWeight: FontWeight.w700,
               );
               final active = lyrics.activeIndexAt(widget.position);
               final offsets = <double>[];
               final heights = <double>[];
-              var offset = 24.0;
+              var offset = AppTheme.space24;
               for (final line in lyrics.lines) {
                 final painter = TextPainter(
                   text: TextSpan(text: line.text, style: style),
@@ -137,7 +146,7 @@ class _LyricsViewState extends State<LyricsView> {
                   textScaler: MediaQuery.textScalerOf(context),
                 )..layout(maxWidth: constraints.maxWidth - horizontal * 2);
                 offsets.add(offset);
-                heights.add(painter.height + 28);
+                heights.add(painter.height + AppTheme.space24 + AppTheme.space4);
                 offset += heights.last;
                 painter.dispose();
               }
@@ -157,20 +166,19 @@ class _LyricsViewState extends State<LyricsView> {
                     controller: _scroll,
                     padding: EdgeInsets.fromLTRB(
                       horizontal,
-                      24,
+                      AppTheme.space24,
                       horizontal,
                       constraints.maxHeight * .45,
                     ),
                     itemCount: lyrics.lines.length + (lyrics.isSynced ? 0 : 1),
                     itemBuilder: (context, i) {
                       if (i == lyrics.lines.length) {
-                        return const Padding(
-                          padding: EdgeInsets.only(top: 20),
+                        return Padding(
+                          padding: const EdgeInsets.only(top: AppTheme.space16),
                           child: Text(
                             'Esta letra no incluye tiempos de sincronización.',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 13,
+                            style: AppTheme.caption.copyWith(
+                              color: AppTheme.textPrimary.withValues(alpha: 0.7),
                             ),
                           ),
                         );
@@ -190,8 +198,10 @@ class _LyricsViewState extends State<LyricsView> {
                                 duration: const Duration(milliseconds: 180),
                                 style: style.copyWith(
                                   color: !lyrics.isSynced || i == active
-                                      ? Colors.white
-                                      : const Color(0xFF686868),
+                                      ? AppTheme.textPrimary
+                                      : AppTheme.textPrimary.withValues(
+                                          alpha: 0.4,
+                                        ),
                                 ),
                                 child: Text(line.text),
                               ),
