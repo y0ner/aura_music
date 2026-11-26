@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'services/aura_audio_handler.dart';
 import 'services/linux_mpris_service.dart';
 import 'services/lyrics_service.dart';
+import 'services/play_history.dart';
 import 'services/storage_service.dart';
 import 'services/player_service.dart';
 import 'services/youtube_service.dart';
@@ -54,6 +55,11 @@ void main() async {
 
   final storageService = MusicStorageService();
   final playerService = PlayerService(audioHandler);
+  connectPlayHistory(
+    playerService,
+    () => playerService.currentSong,
+    storageService.recordPlay,
+  );
 
   if (Platform.isLinux) {
     // Widget de medios del escritorio (MPRIS): permite ver y controlar la
