@@ -287,6 +287,12 @@ class MusicStorageService extends ChangeNotifier {
       } catch (e) {
         debugPrint('Error resolviendo directorio de carátulas: $e');
       }
+      if (artworkDir != null) {
+        // Quita las franjas negras de las miniaturas de YouTube guardadas
+        // antes del rediseño. Cada archivo se procesa una sola vez.
+        final cropped = await normalizeArtworkDirectory(artworkDir);
+        if (cropped > 0) debugPrint('aura: $cropped carátulas recortadas');
+      }
 
       final List<Playlist> foundPlaylists = [];
       final List<Song> foundAllSongs = [];

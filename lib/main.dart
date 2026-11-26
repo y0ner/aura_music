@@ -33,7 +33,7 @@ void main() async {
       config: AudioServiceConfig(
         androidNotificationChannelId: 'com.yoner.auramusic.aura_music.playback',
         androidNotificationChannelName: 'Aura Music — Reproducción',
-        androidNotificationIcon: 'mipmap/ic_launcher',
+        androidNotificationIcon: 'drawable/ic_stat_aura',
         // Sin deslizar mientras suena (igual que YouTube Music). En pausa sí se
         // puede cerrar: audio_service exige stopForegroundOnPause con ongoing.
         androidNotificationOngoing: true,
