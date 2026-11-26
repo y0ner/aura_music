@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../widgets/cover_image.dart';
 import '../models/playlist_model.dart';
 import '../models/song_model.dart';
 import '../services/player_service.dart';
@@ -650,7 +651,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                         width: AppTheme.chipHeight,
                         height: AppTheme.chipHeight,
                         child: song.artworkBytes != null
-                            ? Image.memory(
+                            ? CoverImage(
                                 song.artworkBytes!,
                                 fit: BoxFit.cover,
                               )

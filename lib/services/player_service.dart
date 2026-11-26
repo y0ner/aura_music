@@ -24,6 +24,13 @@ class PlayerService extends ChangeNotifier {
   Song? _currentSong;
   bool _isPlaying = false;
   Duration _position = Duration.zero;
+
+  /// Posición de la canción. Cambia varias veces por segundo, así que va por
+  /// su propio canal: solo la escuchan la barra de progreso y la letra. Si
+  /// pasara por [notifyListeners] redibujaría todas las pantallas.
+  final ValueNotifier<Duration> _positionNotifier = ValueNotifier(
+    Duration.zero,
+  );
   Duration _duration = Duration.zero;
 
   List<Song> _queue = [];
@@ -143,12 +150,18 @@ class PlayerService extends ChangeNotifier {
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
   Duration get position => _position;
+  ValueListenable<Duration> get positionListenable => _positionNotifier;
   Duration get duration => _duration;
   List<Song> get queue => _queue;
   int get currentIndex => _currentIndex;
   bool get isShuffle => _isShuffle;
   AudioRepeatMode get repeatMode => _repeatMode;
   bool get isLyricsMode => _isLyricsMode;
+
+  void _setPosition(Duration value) {
+    _position = value;
+    _positionNotifier.value = value;
+  }
 
   double get progressRatio {
     if (_duration.inMilliseconds == 0) return 0.0;
@@ -190,7 +203,7 @@ class PlayerService extends ChangeNotifier {
             nativeIndex < _queue.length) {
           _currentIndex = nativeIndex;
           _currentSong = _queue[nativeIndex];
-          _position = Duration.zero;
+          _setPosition(Duration.zero);
           notifyListeners();
         }
       });
@@ -213,10 +226,7 @@ class PlayerService extends ChangeNotifier {
         notifyListeners();
       });
 
-      player.positionStream.listen((pos) {
-        _position = pos;
-        notifyListeners();
-      });
+      player.positionStream.listen(_setPosition);
 
       player.durationStream.listen((dur) {
         if (dur != null) {
@@ -266,7 +276,7 @@ class PlayerService extends ChangeNotifier {
             tag: MediaItem(
               id: song.id,
               title: song.title,
-              artist: song.artist,
+              artist: song.hasKnownArtist ? song.artist : song.category,
               album: song.album,
               duration: song.duration,
               artUri: artPath == null ? null : Uri.file(artPath),
@@ -318,7 +328,7 @@ class PlayerService extends ChangeNotifier {
 
     _currentSong = song;
     _playbackError = null;
-    _position = Duration.zero;
+    _setPosition(Duration.zero);
     _duration = song.duration;
     _isPlaying = true;
     notifyListeners();
@@ -359,7 +369,7 @@ class PlayerService extends ChangeNotifier {
                 id: item.id,
                 album: item.album,
                 title: item.title,
-                artist: item.artist,
+                artist: item.hasKnownArtist ? item.artist : item.category,
                 duration: item.duration,
                 artUri: artPath == null ? null : Uri.file(artPath),
               ),
@@ -514,7 +524,7 @@ class PlayerService extends ChangeNotifier {
       if (_duration.inSeconds > 0 && nextSec >= _duration.inSeconds) {
         // Fin por reloj en escritorio: repite o pasa a la siguiente.
         if (_repeatMode == AudioRepeatMode.one) {
-          _position = Duration.zero;
+          _setPosition(Duration.zero);
           notifyListeners();
           if (_currentSong != null) {
             _playOnLinux(_currentSong!.filePath);
@@ -524,8 +534,7 @@ class PlayerService extends ChangeNotifier {
           _playCurrentFromQueue();
         }
       } else {
-        _position = Duration(seconds: nextSec);
-        notifyListeners();
+        _setPosition(Duration(seconds: nextSec));
       }
     });
   }
@@ -560,7 +569,7 @@ class PlayerService extends ChangeNotifier {
   }
 
   Future<void> seek(Duration target) async {
-    _position = target;
+    _setPosition(target);
     notifyListeners();
 
     if (Platform.isAndroid || Platform.isIOS) {
@@ -700,7 +709,7 @@ class PlayerService extends ChangeNotifier {
     _currentIndex = -1;
     _currentSong = null;
     _isPlaying = false;
-    _position = Duration.zero;
+    _setPosition(Duration.zero);
     notifyListeners();
   }
 
@@ -710,6 +719,7 @@ class PlayerService extends ChangeNotifier {
     _currentIndexStreamSub?.cancel();
     _stopLinuxAudio();
     _jaPlayer?.dispose();
+    _positionNotifier.dispose();
     super.dispose();
   }
 }

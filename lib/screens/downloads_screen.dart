@@ -33,8 +33,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<MusicStorageService, PlayerService>(
-      builder: (context, storage, player, child) {
+    // Solo escucha la biblioteca: el reproductor se usa para acciones
+    // (listen: false) y así reproducir/pausar no redibuja la pantalla.
+    return Consumer<MusicStorageService>(
+      builder: (context, storage, child) {
+        final player = Provider.of<PlayerService>(context, listen: false);
         if (storage.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }

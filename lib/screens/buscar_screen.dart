@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../widgets/cover_image.dart';
 import '../models/playlist_model.dart';
 import '../models/song_model.dart';
 import '../services/player_service.dart';
@@ -76,8 +77,11 @@ class _BuscarScreenState extends State<BuscarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<MusicStorageService, PlayerService>(
-      builder: (context, storage, player, child) {
+    // Solo escucha la biblioteca: el reproductor se usa para acciones
+    // (listen: false) y así reproducir/pausar no redibuja la pantalla.
+    return Consumer<MusicStorageService>(
+      builder: (context, storage, child) {
+        final player = Provider.of<PlayerService>(context, listen: false);
         final query = _controller.text.trim();
 
         return ColoredBox(
@@ -611,7 +615,7 @@ class _CompactRecentCard extends StatelessWidget {
               child: SizedBox.square(
                 dimension: size,
                 child: hasArtwork
-                    ? Image.memory(
+                    ? CoverImage(
                         song.artworkBytes!,
                         fit: BoxFit.cover,
                         gaplessPlayback: true,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../widgets/cover_image.dart';
 import '../models/playlist_model.dart';
 import '../models/song_model.dart';
 import '../services/player_service.dart';
@@ -91,12 +92,17 @@ class _InicioScreenState extends State<InicioScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<MusicStorageService, PlayerService>(
-      builder: (context, storage, player, child) {
+    // Solo escucha la biblioteca: el reproductor se usa para acciones
+    // (listen: false) y así reproducir/pausar no redibuja la pantalla.
+    return Consumer<MusicStorageService>(
+      builder: (context, storage, child) {
+        final player = Provider.of<PlayerService>(context, listen: false);
         final chips = storage.playlists.take(_maxChips).toList();
         final gridItems = _collectGridPlaylists(storage);
         final recentSongs = storage.recentlyPlayed;
-        final currentSongId = player.currentSong?.id;
+        final currentSongId = context.select<PlayerService, String?>(
+          (p) => p.currentSong?.id,
+        );
 
         return ColoredBox(
           color: AppTheme.bg,
@@ -613,7 +619,7 @@ class _RecentSongCard extends StatelessWidget {
               child: SizedBox.square(
                 dimension: size,
                 child: hasArtwork
-                    ? Image.memory(
+                    ? CoverImage(
                         song.artworkBytes!,
                         fit: BoxFit.cover,
                         gaplessPlayback: true,
