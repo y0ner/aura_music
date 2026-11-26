@@ -75,6 +75,101 @@ class MetadataTextFixer {
     return t.isEmpty ? fileName : t;
   }
 
+  static final RegExp _junkGroupKeywords = RegExp(
+    r'(?:^|[^a-zA-Z0-9])(?:videos?|videoclips?|official|oficial|audio|visualizers?|lyrics?|letras?|clips?|hd|4k)(?=$|[^a-zA-Z0-9])',
+    caseSensitive: false,
+  );
+
+  static final RegExp _bracketedGroup = RegExp(r'\s*[\(\[][^\)\]]*[\)\]]');
+
+  static final RegExp _parenFeaturing = RegExp(
+    r'\s*[\(\[]\s*(?:featuring|feat\.?|ft\.?)\s+([^\)\]]+?)[\)\]]',
+    caseSensitive: false,
+  );
+
+  static final RegExp _trailingFeaturing = RegExp(
+    r'\s+(?:featuring|feat\.?|ft\.?)\s+([^\(\[\)\]]+?)(?=\s*[\(\[]|$)',
+    caseSensitive: false,
+  );
+
+  static final RegExp _artistSeparator = RegExp(
+    r',|\s+(?:y|&|x)\s+|\s+(?:featuring|feat|ft)\.?(?=\s|$)|\b(?:feat|ft)\.(?=\s|$)',
+    caseSensitive: false,
+  );
+
+  /// Separa artista y título a partir de un nombre tipo `Artista - Título`.
+  ///
+  /// Quita del título los grupos `(...)`/`[...]` promocionales (`Official Video`,
+  /// `Audio Oficial`, `HD`, `4K`, etc.) conservando `(Remix)` y similares, y
+  /// mueve `ft.` / `feat.` / `ft` / `featuring` del título al artista.
+  static ({String? artist, String title}) splitArtistTitle(String rawTitle) {
+    final normalized = _collapseWhitespace(rawTitle);
+    if (normalized.isEmpty) {
+      return (artist: null, title: '');
+    }
+
+    String? artist;
+    var titlePart = normalized;
+
+    final sepIndex = normalized.indexOf(' - ');
+    if (sepIndex != -1) {
+      final left = normalized.substring(0, sepIndex).trim();
+      final right = normalized.substring(sepIndex + 3).trim();
+      if (left.isNotEmpty && left.length <= 80 && right.isNotEmpty) {
+        artist = left;
+        titlePart = right;
+      }
+    }
+
+    // Quita primero los grupos basura entre paréntesis o corchetes.
+    var cleanedTitle = titlePart.replaceAllMapped(_bracketedGroup, (match) {
+      final full = match.group(0)!;
+      final openIdx = full.indexOf(RegExp(r'[\(\[]'));
+      final inner = full.substring(openIdx + 1, full.length - 1);
+      return _junkGroupKeywords.hasMatch(inner) ? '' : full;
+    });
+    cleanedTitle = _collapseWhitespace(cleanedTitle);
+
+    if (artist != null) {
+      final featured = <String>[];
+
+      cleanedTitle = cleanedTitle.replaceAllMapped(_parenFeaturing, (match) {
+        final guest = _collapseWhitespace(match.group(1) ?? '');
+        if (guest.isNotEmpty) featured.add(guest);
+        return '';
+      });
+      cleanedTitle = _collapseWhitespace(cleanedTitle);
+
+      cleanedTitle = cleanedTitle.replaceAllMapped(_trailingFeaturing, (match) {
+        final guest = _collapseWhitespace(match.group(1) ?? '');
+        if (guest.isNotEmpty) featured.add(guest);
+        return '';
+      });
+      cleanedTitle = _collapseWhitespace(cleanedTitle);
+
+      if (featured.isNotEmpty) {
+        artist = '$artist, ${featured.join(', ')}';
+      }
+    }
+
+    if (cleanedTitle.isEmpty) {
+      cleanedTitle = _collapseWhitespace(titlePart);
+    }
+
+    return (artist: artist, title: cleanedTitle);
+  }
+
+  /// Divide una cadena de créditos en artistas individuales sin vacíos.
+  static List<String> splitArtists(String credits) {
+    final trimmed = credits.trim();
+    if (trimmed.isEmpty) return const [];
+    return trimmed
+        .split(_artistSeparator)
+        .map((part) => _collapseWhitespace(part))
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   /// Elimina tokens técnicos tipo `(MP3_320K)` / `[MP3 320Kbps]` / `(320kbps)`.
   static String _stripDownloadJunk(String input) {
     return input.replaceAll(

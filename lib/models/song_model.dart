@@ -11,6 +11,7 @@ class Song {
   final bool isExplicit;
   bool isFavorite;
   final String category;
+  final DateTime? addedAt;
 
   Song({
     required this.id,
@@ -23,6 +24,7 @@ class Song {
     this.isExplicit = false,
     this.isFavorite = false,
     this.category = 'General',
+    this.addedAt,
   });
 
   /// Texto que se guarda cuando el archivo no trae artista.
