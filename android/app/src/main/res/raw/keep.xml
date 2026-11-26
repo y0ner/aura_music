@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Recursos que solo se piden por nombre en tiempo de ejecución (audio_service):
+     el encogimiento de recursos del build release no debe eliminarlos. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_aura,@drawable/ic_aura_*" />
