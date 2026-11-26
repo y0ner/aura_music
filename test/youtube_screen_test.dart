@@ -290,4 +290,52 @@ void main() {
       storage.dispose();
     },
   );
+
+  testWidgets(
+    'con campo vacío muestra Pegar y etiqueta; al escribir muestra Borrar enlace y al tocarlo limpia el campo',
+    (tester) async {
+      final service = _Youtube();
+      final storage = _Storage();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<YoutubeDownloadService>.value(
+              value: service,
+            ),
+            ChangeNotifierProvider<MusicStorageService>.value(value: storage),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.darkTheme,
+            home: const Scaffold(body: YoutubeScreen()),
+          ),
+        ),
+      );
+
+      expect(find.text('Enlace de YouTube'), findsOneWidget);
+      expect(find.text('Pegar'), findsOneWidget);
+      expect(find.byTooltip('Borrar enlace'), findsNothing);
+
+      await tester.enterText(
+        find.byType(TextField),
+        'https://youtu.be/AAAAAAAAAAA',
+      );
+      await tester.pump();
+
+      expect(find.text('Pegar'), findsNothing);
+      expect(find.byTooltip('Borrar enlace'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Borrar enlace'));
+      await tester.pump();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller?.text, isEmpty);
+      expect(find.text('Pegar'), findsOneWidget);
+      expect(find.byTooltip('Borrar enlace'), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      service.dispose();
+      storage.dispose();
+    },
+  );
 }
