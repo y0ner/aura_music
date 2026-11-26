@@ -104,8 +104,12 @@ void main() {
         expect(find.text('Borrar historial'), findsNothing);
 
         await tester.enterText(find.byType(TextField), 'asi');
-        await tester.testTextInput.receiveAction(TextInputAction.search);
-        await tester.runAsync(() => env.storage.stateStore.flush());
+        // Lo que escribe en disco (addSearch/clearSearches) corre en tiempo
+        // real: dentro del reloj simulado la escritura nunca termina.
+        await tester.runAsync(() async {
+          await tester.testTextInput.receiveAction(TextInputAction.search);
+          await env.storage.stateStore.flush();
+        });
         await tester.pump();
 
         expect(find.text('Canciones'), findsOneWidget);
@@ -122,7 +126,10 @@ void main() {
         expect(find.text('Borrar historial'), findsOneWidget);
 
         // El botón north_west rellena el campo con la búsqueda guardada.
-        await tester.tap(find.byTooltip('Usar búsqueda asi'));
+        await tester.runAsync(() async {
+          await tester.tap(find.byTooltip('Usar búsqueda asi'));
+          await env.storage.stateStore.flush();
+        });
         await tester.pump();
         expect(
           tester.widget<TextField>(find.byType(TextField)).controller?.text,
@@ -133,8 +140,10 @@ void main() {
         // Vuelve al historial vacío y borra todo el historial.
         await tester.tap(find.byTooltip('Borrar búsqueda'));
         await tester.pump();
-        await tester.tap(find.text('Borrar historial'));
-        await tester.runAsync(() => env.storage.stateStore.flush());
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Borrar historial'));
+          await env.storage.stateStore.flush();
+        });
         await tester.pump();
 
         expect(find.text('asi'), findsNothing);

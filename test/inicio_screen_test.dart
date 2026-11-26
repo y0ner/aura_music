@@ -88,6 +88,11 @@ void main() {
   testWidgets(
     'muestra «Música que te gustó», playlists reales y oculta «Escuchado hace poco» hasta registrar reproducción',
     (WidgetTester tester) async {
+      // Pantalla de celular (≈392 × 851): con la de 800 × 600 por defecto la
+      // cuadrícula 3 × 3 empuja «Escuchado hace poco» fuera de la vista.
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 2.75;
+      addTearDown(tester.view.reset);
       final env = await _setupStorage(tester);
       final player = PlayerService();
       player.linuxProcessStarter = (exe, args) async {
