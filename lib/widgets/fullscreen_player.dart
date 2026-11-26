@@ -8,6 +8,7 @@ import '../models/song_model.dart';
 import '../services/player_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/artwork_palette.dart';
 import 'explicit_badge.dart';
 import 'lyrics_view.dart';
 
@@ -21,15 +22,61 @@ class FullscreenPlayer extends StatefulWidget {
 }
 
 class _FullscreenPlayerState extends State<FullscreenPlayer> {
-  int _selectedBottomTab =
-      0; // 0: A continuación, 1: Letra, 2: Comentarios, 3: Similares
+  // 0: A continuación, 1: Letra
+  int _selectedBottomTab = 0;
   double? _dragValue;
+
+  String? _paletteSongId;
+  Uint8List? _paletteArtworkBytes;
+  Color _bgColor = AppTheme.surfaceHigh;
 
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes;
     final seconds = d.inSeconds.remainder(60);
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
+
+  void _syncArtworkColor(Song song) {
+    final bytes = song.artworkBytes;
+    if (_paletteSongId == song.id && identical(_paletteArtworkBytes, bytes)) {
+      return;
+    }
+    _paletteSongId = song.id;
+    _paletteArtworkBytes = bytes;
+    if (bytes == null || bytes.isEmpty) {
+      _bgColor = AppTheme.surfaceHigh;
+      return;
+    }
+    final targetId = song.id;
+    artworkBackgroundColor(bytes).then((color) {
+      if (!mounted || _paletteSongId != targetId) return;
+      if (_bgColor != color) {
+        setState(() => _bgColor = color);
+      }
+    });
+  }
+
+  Widget _buildGradientBackground({required Widget child}) {
+    final top = _bgColor;
+    final midUpper = Color.lerp(top, AppTheme.bg, 0.45)!;
+    final midLower = Color.lerp(top, AppTheme.bg, 0.85)!;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [top, midUpper, midLower, AppTheme.bg],
+          stops: const [0.0, 0.34, 0.66, 1.0],
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  String _songSubtitle(Song song) =>
+      song.hasKnownArtist ? song.artist : song.category;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +86,8 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
         if (song == null) {
           return const SizedBox.shrink();
         }
+
+        _syncArtworkColor(song);
 
         final position = Duration(
           milliseconds:
@@ -50,429 +99,41 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
 
         if (player.isLyricsMode) {
           return Scaffold(
-            backgroundColor: const Color(0xFF100D06),
-            body: SafeArea(
-              child: Column(
-                children: [
-                  _lyricsNowPlaying(player, song),
-                  Expanded(
-                    child: _lyricsPanel(
-                      player,
-                      song,
-                      () => player.toggleLyricsMode(),
+            backgroundColor: AppTheme.bg,
+            body: _buildGradientBackground(
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    _lyricsNowPlaying(player, song),
+                    Expanded(
+                      child: _lyricsPanel(
+                        player,
+                        song,
+                        () => player.toggleLyricsMode(),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
         }
 
         return Scaffold(
-          backgroundColor: const Color(0xFF030303),
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Top App Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                        onPressed: widget.onCollapse,
-                      ),
-                      // Pill toggle: Canción | Letra
-                      Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF212121),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () {
-                                if (player.isLyricsMode) {
-                                  player.toggleLyricsMode();
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: !player.isLyricsMode
-                                      ? const Color(0xFF383838)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'Canción',
-                                  style: TextStyle(
-                                    color: !player.isLyricsMode
-                                        ? Colors.white
-                                        : const Color(0xFFAAAAAA),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                if (!player.isLyricsMode) {
-                                  player.toggleLyricsMode();
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: player.isLyricsMode
-                                      ? const Color(0xFF383838)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'Letra',
-                                  style: TextStyle(
-                                    color: player.isLyricsMode
-                                        ? Colors.white
-                                        : const Color(0xFFAAAAAA),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.more_vert_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        onPressed: () => _showTrackOptionsMenu(context, song),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Contenido central: carátula gigante o letra sincronizada
-                // estilo YouTube Music según la píldora Canción | Letra.
-                Expanded(
-                  flex: 6,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 8,
-                    ),
-                    child: player.isLyricsMode
-                        ? LyricsView(
-                            song: song,
-                            position: position,
-                            onSeek: (target) => player.seek(target),
-                          )
-                        : Center(
-                            child: AspectRatio(
-                              aspectRatio: 1.0,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.6,
-                                      ),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: song.artworkBytes != null
-                                      ? Image.memory(
-                                          song.artworkBytes!,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Container(
-                                          color: const Color(0xFF1F1F1F),
-                                          child: Stack(
-                                            alignment: Alignment.center,
-                                            children: [
-                                              const Icon(
-                                                Icons.album_rounded,
-                                                size: 110,
-                                                color: Colors.white12,
-                                              ),
-                                              Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.graphic_eq_rounded,
-                                                    size: 48,
-                                                    color: Colors.white70,
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 20,
-                                                        ),
-                                                    child: Text(
-                                                      song.title,
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-
-                // Song Title and Artist Row
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          if (song.isExplicit) const ExplicitBadge(size: 14),
-                          Expanded(
-                            child: Text(
-                              song.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFFAAAAAA),
-                                fontSize: 14.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Scrubber / Progress Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 2.5,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
-                      ),
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 12,
-                      ),
-                      activeTrackColor: Colors.white,
-                      inactiveTrackColor: Colors.white24,
-                      thumbColor: Colors.white,
-                      overlayColor: Colors.white.withValues(alpha: 0.12),
-                    ),
-                    child: Slider(
-                      min: 0.0,
-                      max: totalDuration.inMilliseconds.toDouble() > 0
-                          ? totalDuration.inMilliseconds.toDouble()
-                          : 1.0,
-                      value: position.inMilliseconds.toDouble().clamp(
-                        0.0,
-                        totalDuration.inMilliseconds.toDouble() > 0
-                            ? totalDuration.inMilliseconds.toDouble()
-                            : 1.0,
-                      ),
-                      onChanged: (val) {
-                        setState(() {
-                          _dragValue = val;
-                        });
-                      },
-                      onChangeEnd: (val) {
-                        player.seek(Duration(milliseconds: val.toInt()));
-                        setState(() {
-                          _dragValue = null;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-
-                // Timestamp labels
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatDuration(position),
-                        style: const TextStyle(
-                          color: Color(0xFFAAAAAA),
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        _formatDuration(totalDuration),
-                        style: const TextStyle(
-                          color: Color(0xFFAAAAAA),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // Main Playback Controls
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Shuffle button
-                      IconButton(
-                        icon: Icon(
-                          Icons.shuffle_rounded,
-                          color: player.isShuffle
-                              ? Colors.white
-                              : Colors.white54,
-                          size: 26,
-                        ),
-                        onPressed: () => player.toggleShuffle(),
-                      ),
-
-                      // Previous button
-                      IconButton(
-                        icon: const Icon(
-                          Icons.skip_previous_rounded,
-                          color: Colors.white,
-                          size: 38,
-                        ),
-                        onPressed: () => player.previous(),
-                      ),
-
-                      // Big White Circle Play/Pause Button (Matching screenshot 3 & 4)
-                      GestureDetector(
-                        onTap: () => player.togglePlayPause(),
-                        child: Container(
-                          width: 68,
-                          height: 68,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black45,
-                                blurRadius: 10,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              player.isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                              color: Colors.black,
-                              size: 40,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Next button
-                      IconButton(
-                        icon: const Icon(
-                          Icons.skip_next_rounded,
-                          color: Colors.white,
-                          size: 38,
-                        ),
-                        onPressed: () => player.next(),
-                      ),
-
-                      // Repeat button
-                      IconButton(
-                        icon: Icon(
-                          player.repeatMode == AudioRepeatMode.one
-                              ? Icons.repeat_one_rounded
-                              : Icons.repeat_rounded,
-                          color: player.repeatMode != AudioRepeatMode.off
-                              ? Colors.white
-                              : Colors.white54,
-                          size: 26,
-                        ),
-                        onPressed: () => player.toggleRepeat(),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const Spacer(flex: 2),
-
-                // Bottom Tabs: A continuación, Letra, Comentarios, Similares
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Color(0xFF1E1E1E), width: 1),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildBottomTab(0, 'A continuación', isBold: true),
-                      _buildBottomTab(1, 'Letra'),
-                      _buildBottomTab(2, 'Comentarios'),
-                      _buildBottomTab(3, 'Similares'),
-                    ],
-                  ),
-                ),
-              ],
+          backgroundColor: AppTheme.bg,
+          body: _buildGradientBackground(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  _buildTopBar(context, player, song),
+                  Expanded(child: _buildArtwork(context, song)),
+                  _buildTitleAndArtist(song),
+                  _buildActionPills(context, song),
+                  _buildProgressBar(context, player, position, totalDuration),
+                  _buildPlaybackControls(player),
+                  _buildBottomTabs(),
+                ],
+              ),
             ),
           ),
         );
@@ -480,23 +141,457 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
     );
   }
 
-  Widget _buildBottomTab(int index, String title, {bool isBold = false}) {
+  Widget _buildTopBar(BuildContext context, PlayerService player, Song song) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.space4,
+        AppTheme.space12,
+        AppTheme.space4,
+        0,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            tooltip: 'Minimizar',
+            constraints: const BoxConstraints.tightFor(
+              width: AppTheme.minTouch,
+              height: AppTheme.minTouch,
+            ),
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: AppTheme.textPrimary,
+              size: 28,
+            ),
+            onPressed: widget.onCollapse,
+          ),
+          Container(
+            padding: const EdgeInsets.all(AppTheme.space4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(AppTheme.space24),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildModeSegment(
+                  label: 'Canción',
+                  selected: !player.isLyricsMode,
+                  onTap: () {
+                    if (player.isLyricsMode) {
+                      player.toggleLyricsMode();
+                    }
+                  },
+                ),
+                _buildModeSegment(
+                  label: 'Letra',
+                  selected: player.isLyricsMode,
+                  onTap: () {
+                    if (!player.isLyricsMode) {
+                      player.toggleLyricsMode();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Más opciones',
+            constraints: const BoxConstraints.tightFor(
+              width: AppTheme.minTouch,
+              height: AppTheme.minTouch,
+            ),
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: AppTheme.textPrimary,
+              size: 24,
+            ),
+            onPressed: () => _showTrackOptionsMenu(context, song),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeSegment({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final pillRadius = BorderRadius.circular(AppTheme.space24);
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: pillRadius,
+          onTap: onTap,
+          child: Container(
+            height: AppTheme.chipHeight - AppTheme.space4,
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.space16),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppTheme.textPrimary.withValues(alpha: 0.20)
+                  : Colors.transparent,
+              borderRadius: pillRadius,
+            ),
+            child: Text(
+              label,
+              style: selected
+                  ? AppTheme.label
+                  : AppTheme.label.copyWith(
+                      color: AppTheme.textPrimary.withValues(alpha: 0.75),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArtwork(BuildContext context, Song song) {
+    final screenArtwork =
+        MediaQuery.sizeOf(context).width - AppTheme.space24 * 2;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.space24,
+        AppTheme.space24,
+        AppTheme.space24,
+        0,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dimension = [
+            screenArtwork,
+            constraints.maxWidth,
+            constraints.maxHeight,
+          ].reduce((a, b) => a < b ? a : b).clamp(0.0, double.infinity);
+          return Center(
+            child: Container(
+              width: dimension,
+              height: dimension,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppTheme.radiusArtwork),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    blurRadius: 32,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radiusArtwork),
+                child: song.artworkBytes != null
+                    ? Image.memory(song.artworkBytes!, fit: BoxFit.cover)
+                    : Container(
+                        color: AppTheme.surfaceHigh,
+                        child: const Center(
+                          child: Icon(
+                            Icons.music_note_rounded,
+                            size: 72,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTitleAndArtist(Song song) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.space24,
+        AppTheme.space24,
+        AppTheme.space16,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.titleLarge,
+          ),
+          const SizedBox(height: AppTheme.space4),
+          Row(
+            children: [
+              if (song.isExplicit) const ExplicitBadge(size: 14),
+              Expanded(
+                child: Text(
+                  _songSubtitle(song),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.itemTitle.copyWith(
+                    color: AppTheme.textPrimary.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionPills(BuildContext context, Song song) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.space24,
+        AppTheme.space16,
+        AppTheme.space24,
+        0,
+      ),
+      child: Row(
+        children: [
+          _buildPillButton(
+            icon: song.isFavorite ? Icons.thumb_up : Icons.thumb_up_outlined,
+            label: 'Me gusta',
+            onTap: () =>
+                context.read<MusicStorageService>().toggleFavorite(song),
+          ),
+          const SizedBox(width: AppTheme.space8),
+          _buildPillButton(
+            icon: Icons.playlist_add,
+            label: 'Guardar',
+            onTap: () => _saveToPlaylist(song),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPillButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final radius = BorderRadius.circular(AppTheme.chipHeight / 2);
+    return Material(
+      color: AppTheme.textPrimary.withValues(alpha: 0.12),
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: onTap,
+        child: Container(
+          height: AppTheme.chipHeight,
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.space16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: AppTheme.textPrimary),
+              const SizedBox(width: AppTheme.space8),
+              Text(label, style: AppTheme.label),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressBar(
+    BuildContext context,
+    PlayerService player,
+    Duration position,
+    Duration totalDuration,
+  ) {
+    final maxMillis = totalDuration.inMilliseconds > 0
+        ? totalDuration.inMilliseconds.toDouble()
+        : 1.0;
+    final sliderTheme = Theme.of(context).sliderTheme;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.space8,
+            AppTheme.space8,
+            AppTheme.space8,
+            0,
+          ),
+          child: SliderTheme(
+            data: sliderTheme.copyWith(
+              activeTrackColor: AppTheme.accent,
+              inactiveTrackColor: AppTheme.textPrimary.withValues(alpha: 0.25),
+              thumbColor: AppTheme.textPrimary,
+              overlayColor: AppTheme.textPrimary.withValues(alpha: 0.16),
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            ),
+            child: Slider(
+              min: 0.0,
+              max: maxMillis,
+              value: position.inMilliseconds.toDouble().clamp(0.0, maxMillis),
+              onChanged: (val) => setState(() => _dragValue = val),
+              onChangeEnd: (val) {
+                player.seek(Duration(milliseconds: val.toInt()));
+                setState(() => _dragValue = null);
+              },
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.space24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDuration(position),
+                style: AppTheme.caption.copyWith(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.75),
+                ),
+              ),
+              Text(
+                _formatDuration(totalDuration),
+                style: AppTheme.caption.copyWith(
+                  color: AppTheme.textPrimary.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlaybackControls(PlayerService player) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.space16,
+        AppTheme.space12,
+        AppTheme.space16,
+        0,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            tooltip: 'Aleatorio',
+            constraints: const BoxConstraints.tightFor(
+              width: AppTheme.minTouch,
+              height: AppTheme.minTouch,
+            ),
+            icon: Icon(
+              Icons.shuffle_rounded,
+              color: player.isShuffle
+                  ? AppTheme.accent
+                  : AppTheme.textPrimary.withValues(alpha: 0.6),
+              size: 24,
+            ),
+            onPressed: player.toggleShuffle,
+          ),
+          IconButton(
+            tooltip: 'Anterior',
+            constraints: const BoxConstraints.tightFor(
+              width: AppTheme.playlistThumb,
+              height: AppTheme.playlistThumb,
+            ),
+            icon: const Icon(
+              Icons.skip_previous_rounded,
+              color: AppTheme.textPrimary,
+              size: 36,
+            ),
+            onPressed: player.previous,
+          ),
+          SizedBox(
+            width: AppTheme.playerPlayButtonSize,
+            height: AppTheme.playerPlayButtonSize,
+            child: IconButton(
+              tooltip: player.isPlaying ? 'Pausar' : 'Reproducir',
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.textPrimary,
+                foregroundColor: AppTheme.bg,
+                shape: const CircleBorder(),
+              ),
+              iconSize: 38,
+              icon: Icon(
+                player.isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+              ),
+              onPressed: player.togglePlayPause,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Siguiente',
+            constraints: const BoxConstraints.tightFor(
+              width: AppTheme.playlistThumb,
+              height: AppTheme.playlistThumb,
+            ),
+            icon: const Icon(
+              Icons.skip_next_rounded,
+              color: AppTheme.textPrimary,
+              size: 36,
+            ),
+            onPressed: player.next,
+          ),
+          IconButton(
+            tooltip: switch (player.repeatMode) {
+              AudioRepeatMode.off => 'Repetir',
+              AudioRepeatMode.all => 'Repetir lista',
+              AudioRepeatMode.one => 'Repetir canción',
+            },
+            constraints: const BoxConstraints.tightFor(
+              width: AppTheme.minTouch,
+              height: AppTheme.minTouch,
+            ),
+            icon: Icon(
+              player.repeatMode == AudioRepeatMode.one
+                  ? Icons.repeat_one_rounded
+                  : Icons.repeat_rounded,
+              color: player.repeatMode != AudioRepeatMode.off
+                  ? AppTheme.accent
+                  : AppTheme.textPrimary.withValues(alpha: 0.6),
+              size: 24,
+            ),
+            onPressed: player.toggleRepeat,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomTabs() {
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppTheme.space4,
+        bottom: AppTheme.space8,
+      ),
+      child: SizedBox(
+        height: AppTheme.playlistThumb,
+        child: Row(
+          children: [
+            Expanded(child: _buildBottomTab(0, 'A continuación')),
+            Expanded(child: _buildBottomTab(1, 'Letra')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomTab(int index, String title) {
     final isSelected = _selectedBottomTab == index;
-    return GestureDetector(
+    return InkWell(
       onTap: () {
-        setState(() {
-          _selectedBottomTab = index;
-        });
+        setState(() => _selectedBottomTab = index);
         _showBottomTabSheet(index, title);
       },
-      child: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? Colors.white : const Color(0xFFAAAAAA),
-          fontSize: 13.5,
-          fontWeight: isSelected || isBold
-              ? FontWeight.bold
-              : FontWeight.normal,
+      child: Center(
+        child: Text(
+          title,
+          style: AppTheme.label.copyWith(
+            color: isSelected
+                ? AppTheme.textPrimary
+                : AppTheme.textPrimary.withValues(alpha: 0.7),
+          ),
         ),
       ),
     );
@@ -508,7 +603,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: const Color(0xFF292211),
+        backgroundColor: AppTheme.surfaceHigh,
         builder: (ctx) => ChangeNotifierProvider.value(
           value: player,
           child: Consumer<PlayerService>(
@@ -538,123 +633,94 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
       );
       return;
     }
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF181818),
+      backgroundColor: AppTheme.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
       ),
       builder: (ctx) {
         final player = Provider.of<PlayerService>(context, listen: false);
         return Container(
-          padding: const EdgeInsets.all(16),
-          height: 350,
+          padding: const EdgeInsets.all(AppTheme.space16),
+          height: 360,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: AppTheme.chipHeight,
+                  height: AppTheme.space4,
                   decoration: BoxDecoration(
-                    color: Colors.white30,
-                    borderRadius: BorderRadius.circular(2),
+                    color: AppTheme.textPrimary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppTheme.space12),
+              Text(title, style: AppTheme.titleLarge),
+              const SizedBox(height: AppTheme.space12),
               Expanded(
-                child: index == 1
-                    // Hoja de Letra con la misma vista sincronizada del
-                    // modo Letra (se suscribe a la posición en vivo).
-                    ? Consumer<PlayerService>(
-                        builder: (context, livePlayer, _) {
-                          final liveSong = livePlayer.currentSong;
-                          if (liveSong == null) {
-                            return const SizedBox.shrink();
-                          }
-                          return LyricsView(
-                            song: liveSong,
-                            position: livePlayer.position,
-                            onSeek: (target) => livePlayer.seek(target),
-                          );
-                        },
-                      )
-                    : index == 0
-                    ? ListView.builder(
-                        itemCount: player.queue.length,
-                        itemBuilder: (context, i) {
-                          final song = player.queue[i];
-                          final isCurrent = i == player.currentIndex;
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                color: const Color(0xFF2A2A2A),
-                                child: song.artworkBytes != null
-                                    ? Image.memory(
-                                        song.artworkBytes!,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : const Icon(
-                                        Icons.music_note,
-                                        color: Colors.white54,
-                                      ),
-                              ),
-                            ),
-                            title: Text(
-                              song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: isCurrent
-                                    ? AppTheme.redAccent
-                                    : Colors.white,
-                                fontWeight: isCurrent
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                            subtitle: Text(
-                              song.artist,
-                              style: const TextStyle(
-                                color: Color(0xFFAAAAAA),
-                                fontSize: 12,
-                              ),
-                            ),
-                            trailing: isCurrent
-                                ? const Icon(
-                                    Icons.volume_up_rounded,
-                                    color: AppTheme.redAccent,
-                                  )
-                                : null,
-                            onTap: () {
-                              player.playSong(song, playlist: player.queue);
-                              Navigator.pop(ctx);
-                            },
-                          );
-                        },
-                      )
-                    : Center(
-                        child: Text(
-                          index == 2
-                              ? 'Comentarios no disponibles sin conexión.'
-                              : 'Reproduciendo desde tu carpeta local.',
-                          style: const TextStyle(color: Colors.white54),
+                child: ListView.builder(
+                  itemCount: player.queue.length,
+                  itemBuilder: (context, i) {
+                    final song = player.queue[i];
+                    final isCurrent = i == player.currentIndex;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                        child: Container(
+                          width: AppTheme.songThumb,
+                          height: AppTheme.songThumb,
+                          color: AppTheme.chip,
+                          child: song.artworkBytes != null
+                              ? Image.memory(
+                                  song.artworkBytes!,
+                                  fit: BoxFit.cover,
+                                )
+                              : const Icon(
+                                  Icons.music_note_rounded,
+                                  color: AppTheme.textSecondary,
+                                ),
                         ),
                       ),
+                      title: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.itemTitle.copyWith(
+                          color: isCurrent
+                              ? AppTheme.accent
+                              : AppTheme.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        song.hasKnownArtist
+                            ? song.artist
+                            : song.formattedDuration,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.itemSubtitle,
+                      ),
+                      trailing: isCurrent
+                          ? const Icon(
+                              Icons.volume_up_rounded,
+                              color: AppTheme.accent,
+                            )
+                          : null,
+                      onTap: () {
+                        player.playSong(song, playlist: player.queue);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -665,21 +731,28 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
 
   Widget _lyricsNowPlaying(PlayerService player, Song song) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.space16,
+        vertical: AppTheme.space12,
+      ),
       child: Row(
         children: [
-          SizedBox(
-            width: 52,
-            height: 52,
-            child: song.artworkBytes == null
-                ? const Icon(
-                    Icons.album_outlined,
-                    color: Colors.white54,
-                    size: 44,
-                  )
-                : Image.memory(song.artworkBytes!, fit: BoxFit.cover),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+            child: Container(
+              width: AppTheme.songThumb,
+              height: AppTheme.songThumb,
+              color: AppTheme.surfaceHigh,
+              child: song.artworkBytes == null
+                  ? const Icon(
+                      Icons.music_note_rounded,
+                      color: AppTheme.textSecondary,
+                      size: 24,
+                    )
+                  : Image.memory(song.artworkBytes!, fit: BoxFit.cover),
+            ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppTheme.space16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,17 +761,13 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                   song.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTheme.itemTitle,
                 ),
                 Text(
-                  song.artist,
+                  _songSubtitle(song),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white60, fontSize: 15),
+                  style: AppTheme.itemSubtitle,
                 ),
               ],
             ),
@@ -707,8 +776,10 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
             tooltip: player.isPlaying ? 'Pausar' : 'Reproducir',
             onPressed: player.togglePlayPause,
             icon: Icon(
-              player.isPlaying ? Icons.pause : Icons.play_arrow,
-              color: Colors.white,
+              player.isPlaying
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
+              color: AppTheme.textPrimary,
             ),
           ),
         ],
@@ -719,38 +790,34 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
   Widget _lyricsPanel(PlayerService player, Song song, VoidCallback close) {
     return Column(
       children: [
-        const SizedBox(height: 8),
+        const SizedBox(height: AppTheme.space8),
         Container(
-          width: 40,
-          height: 4,
+          width: AppTheme.chipHeight,
+          height: AppTheme.space4,
           decoration: BoxDecoration(
-            color: Colors.white38,
-            borderRadius: BorderRadius.circular(4),
+            color: AppTheme.textPrimary.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.space16,
+            AppTheme.space12,
+            AppTheme.space8,
+            AppTheme.space12,
+          ),
           child: Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Letra',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              const Expanded(child: Text('Letra', style: AppTheme.titleLarge)),
               IconButton(
                 tooltip: 'Cerrar letra',
                 onPressed: close,
-                icon: const Icon(Icons.close, color: Colors.white),
+                icon: const Icon(Icons.close, color: AppTheme.textPrimary),
               ),
             ],
           ),
         ),
-        const Divider(height: 1, color: Colors.white12),
+        const Divider(height: 1, color: AppTheme.dividerColor),
         Expanded(
           child: Stack(
             children: [
@@ -762,17 +829,17 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                 ),
               ),
               Positioned(
-                bottom: 20,
+                bottom: AppTheme.space24,
                 left: 0,
                 right: 0,
                 child: Center(
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: AppTheme.textPrimary,
+                      foregroundColor: AppTheme.bg,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
+                        horizontal: AppTheme.space24,
+                        vertical: AppTheme.space12,
                       ),
                     ),
                     onPressed: () => _copySong(song),
@@ -789,9 +856,10 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
   }
 
   Future<void> _copySong(Song song) async {
-    await Clipboard.setData(
-      ClipboardData(text: '${song.title} — ${song.artist}'),
-    );
+    final sharedText = song.hasKnownArtist
+        ? '${song.title} — ${song.artist}'
+        : song.title;
+    await Clipboard.setData(ClipboardData(text: sharedText));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -815,18 +883,18 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
     }
     final destination = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF212121),
+      backgroundColor: AppTheme.surfaceHigh,
       builder: (ctx) => SafeArea(
         child: ListView(
           shrinkWrap: true,
           children: destinations
               .map(
                 (p) => ListTile(
-                  leading: const Icon(Icons.playlist_play, color: Colors.white),
-                  title: Text(
-                    p.name,
-                    style: const TextStyle(color: Colors.white),
+                  leading: const Icon(
+                    Icons.playlist_play,
+                    color: AppTheme.textPrimary,
                   ),
+                  title: Text(p.name, style: AppTheme.itemTitle),
                   onTap: () => Navigator.pop(ctx, p.folderPath),
                 ),
               )
@@ -851,18 +919,22 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
       }
       await storage.scanLibrary();
     } catch (e) {
+      debugPrint('Error al guardar la canción en playlist: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('No se pudo guardar: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('No se pudo guardar: $e')));
     }
   }
 
   void _showTrackOptionsMenu(BuildContext context, Song song) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTheme.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
       ),
       isScrollControlled: true,
       builder: (ctx) {
@@ -870,36 +942,47 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
         Widget quick(IconData icon, String label, VoidCallback action) =>
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.space8,
+                ),
                 child: Column(
                   children: [
                     SizedBox(
                       width: double.infinity,
-                      height: 68,
+                      height: AppTheme.playButtonSize,
                       child: FilledButton(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF343434),
+                          backgroundColor: AppTheme.chip,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusArtwork,
+                            ),
                           ),
                         ),
                         onPressed: () {
                           Navigator.pop(ctx);
                           action();
                         },
-                        child: Icon(icon, color: Colors.white, size: 28),
+                        child: Icon(icon, color: AppTheme.textPrimary, size: 28),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: AppTheme.space8),
                     Text(
                       label,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: AppTheme.caption.copyWith(
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                   ],
                 ),
               ),
             );
+
+        final trackMeta = song.hasKnownArtist
+            ? '${song.artist} • ${song.formattedDuration}'
+            : song.formattedDuration;
+
         return SafeArea(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -910,7 +993,12 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 8, 16),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppTheme.space24,
+                      AppTheme.space24,
+                      AppTheme.space8,
+                      AppTheme.space16,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -919,20 +1007,12 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                             children: [
                               Text(
                                 song.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.titleLarge,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${song.artist} • ${song.formattedDuration}',
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 16,
-                                ),
-                              ),
+                              const SizedBox(height: AppTheme.space4),
+                              Text(trackMeta, style: AppTheme.itemSubtitle),
                             ],
                           ),
                         ),
@@ -942,7 +1022,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                             song.isFavorite
                                 ? Icons.thumb_up
                                 : Icons.thumb_up_outlined,
-                            color: Colors.white,
+                            color: AppTheme.textPrimary,
                           ),
                           onPressed: () {
                             context.read<MusicStorageService>().toggleFavorite(
@@ -953,17 +1033,20 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                         ),
                         IconButton(
                           tooltip: 'Cerrar opciones',
-                          icon: const Icon(Icons.close, color: Colors.white),
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppTheme.textPrimary,
+                          ),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: Colors.white24),
+                  const Divider(height: 1, color: AppTheme.dividerColor),
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 20,
+                      horizontal: AppTheme.space12,
+                      vertical: AppTheme.space24,
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -987,10 +1070,13 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                     ),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.queue_music, color: Colors.white),
+                    leading: const Icon(
+                      Icons.queue_music,
+                      color: AppTheme.textPrimary,
+                    ),
                     title: const Text(
                       'Agregar a la fila',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
                     onTap: () {
                       player.enqueue(song);
@@ -1000,13 +1086,13 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                   ListTile(
                     leading: const Icon(
                       Icons.favorite_outline,
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                     ),
                     title: Text(
                       song.isFavorite
                           ? 'Quitar de favoritos'
                           : 'Añadir a Música que te gustó',
-                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
                     onTap: () {
                       context.read<MusicStorageService>().toggleFavorite(song);
@@ -1016,32 +1102,29 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
                   ListTile(
                     leading: const Icon(
                       Icons.info_outline,
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                     ),
                     title: const Text(
                       'Detalles de la pista',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
-                    subtitle: Text(
-                      song.filePath,
-                      style: const TextStyle(color: Colors.white54),
-                    ),
+                    subtitle: Text(song.filePath, style: AppTheme.itemSubtitle),
                   ),
                   ListTile(
                     leading: const Icon(
                       Icons.playlist_remove,
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                     ),
                     title: const Text(
                       'Descartar fila',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
+                      style: AppTheme.itemTitle,
                     ),
                     onTap: () {
                       player.stopAndClear();
                       Navigator.pop(ctx);
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTheme.space12),
                 ],
               ),
             ),
