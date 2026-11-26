@@ -25,6 +25,14 @@ class Song {
     this.category = 'General',
   });
 
+  /// Texto que se guarda cuando el archivo no trae artista.
+  static const String unknownArtist = 'Artista desconocido';
+
+  /// `false` si el artista es desconocido: la interfaz no debe mostrar
+  /// «Artista desconocido», solo la duración u otro dato real.
+  bool get hasKnownArtist =>
+      artist.trim().isNotEmpty && artist.trim() != unknownArtist;
+
   String get formattedDuration {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60);
