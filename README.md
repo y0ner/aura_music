@@ -1,4 +1,12 @@
-# 🎵 Aura Music — Reproductor de Música Estilo YouTube Music
+<div align="center">
+
+![Aura Music Banner](https://capsule-render.vercel.app/api?type=waving&color=1e293b&height=250&section=header&text=Aura%20Music&fontSize=80&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Reproductor%20de%20m%C3%BAsica%20local%20en%20Flutter&descAlignY=55&descSize=20)
+
+[![Estado del Proyecto](https://img.shields.io/badge/Estado-Activo-success?style=for-the-badge)](https://github.com/y0ner/aura_music)
+[![Mantenimiento](https://img.shields.io/badge/Mantenimiento-Continuo-blue?style=for-the-badge)](https://github.com/y0ner/aura_music)
+[![Stack](https://img.shields.io/badge/Stack-Flutter%20%C2%B7%20Dart-orange?style=for-the-badge)](https://github.com/y0ner/aura_music)
+
+</div>
 
 Una aplicación nativa de reproducción de música desarrollada en **Flutter**, diseñada con una interfaz **100% idéntica a YouTube Music** (Dark AMOLED `#030303`), lectura automática de metadatos de audio ID3 y una mecánica inteligente basada en carpetas y subcarpetas para la gestión de playlists sin necesidad de base de datos externa ni conexión a internet.
 
@@ -109,3 +117,9 @@ aura_music/
 │   └── main.dart                      # Punto de entrada y configuración de tema oscuro
 └── pubspec.yaml
 ```
+
+---
+
+<div align="center">
+  <i>Desarrollado y mantenido con estándares de calidad técnica por <a href="https://github.com/y0ner">y0ner</a></i>
+</div>
