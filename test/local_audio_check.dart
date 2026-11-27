@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('la playlist descargada decodifica y se reproduce con el proceso real', () async {
-    const root = '/home/yoner/Music/AuraMusic';
+    final root = '${Platform.environment['HOME']}/Music/AuraMusic';
     final directory = Directory('$root/#6 Ultra Slowed Dark Phonk ⚡⚡⚡⚡');
     final plugin =
         '${Directory.current.path}/.dart_tool/linux-codecs/usr/lib/x86_64-linux-gnu/gstreamer-1.0';
