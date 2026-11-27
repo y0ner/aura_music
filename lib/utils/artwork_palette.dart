@@ -99,7 +99,7 @@ Future<Color> artworkBackgroundColor(Uint8List? bytes) async {
   }
 
   try {
-    final rgb = await Isolate.run(() => _extractAverageRgb(bytes));
+    final rgb = await _extractInBackground(bytes);
     if (rgb == null) {
       debugPrint(
         'artworkBackgroundColor: no se pudo decodificar la carátula '
@@ -126,3 +126,8 @@ Future<Color> artworkBackgroundColor(Uint8List? bytes) async {
     return AppTheme.surfaceHigh;
   }
 }
+
+/// Función de nivel superior: el cierre enviado al isolate solo captura
+/// [bytes] (un cierre local arrastraría su contexto y podría no enviarse).
+Future<({int r, int g, int b})?> _extractInBackground(Uint8List bytes) =>
+    Isolate.run(() => _extractAverageRgb(bytes));

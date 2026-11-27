@@ -1,0 +1,21 @@
+Aura Music is an offline folder-based music player for Android with a dark OLED interface and its own A·Play design.
+
+Every subfolder inside Music/AuraMusic automatically becomes a playlist, with full support for emojis in folder names. Keep your music organized in plain folders on your device—no cloud accounts, no ads, and no tracking.
+
+Features:
+• Folder-based library: Create playlists as subfolders from the app, pick another root folder, and rescan anytime.
+• Home & quick access: 3x3 quick-access grid (Liked Music, playlists, Recently Added, Most Played, and artist mixes), Recently Played strip, and playlist chips.
+• Instant search: Search songs, artists, folders, and playlists ignoring accents and case, with saved recent searches.
+• Library & Songs views: Switch between list and grid layouts, sort playlists by name or song count, filter songs by folder, and sort by title, artist, or duration.
+• Playlist view & Liked Music: Full-width 2x2 cover collage, play, shuffle, add to queue, and persistent Liked Music with folder filters.
+• Dynamic player: Background gradient extracted from each track's cover art, Like and Save actions, shuffle, repeat / repeat one, seek bar, and Up Next queue management.
+• Synchronized lyrics: Reads local .lrc files beside the audio or fetches synced lyrics from LRCLIB (no account required) and caches them for offline use. Tap any verse to seek.
+• Add from YouTube: Paste a YouTube song or public/unlisted playlist link, choose the destination folder, and download .m4a audio through a FIFO queue with progress, cancel, retry, and automatic cover letterbox cropping.
+• Background playback: MediaSession notification with cover art, progress bar, repeat toggle, and like button.
+• Filename parsing: Extracts artist and title from filenames like "Artist - Title (Official Video) ft. X" when tags are missing.
+
+Privacy:
+No accounts, no ads, and no analytics. Network access is used only when you paste a YouTube link, look up lyrics on LRCLIB, or restore the missing cover of a song downloaded from YouTube.
+
+Disclaimer:
+Aura Music is not affiliated with YouTube or Google. Users are responsible for downloading only content they have the right to save under YouTube's Terms of Service.

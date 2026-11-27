@@ -17,10 +17,10 @@ if [ -d "/usr/lib/jvm/java-17-openjdk-amd64" ]; then
 elif [ -d "/usr/lib/jvm/java-21-openjdk-amd64" ]; then
   export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 else
-  export JAVA_HOME="${JAVA_HOME:-/home/yoner/.local/share/flatpak/app/com.google.AndroidStudio/current/active/files/extra/jbr}"
+  export JAVA_HOME="${JAVA_HOME:-$HOME/.local/share/flatpak/app/com.google.AndroidStudio/current/active/files/extra/jbr}"
 fi
 
-export ANDROID_HOME="${ANDROID_HOME:-/home/yoner/Android/Sdk}"
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 export PATH="$JAVA_HOME/bin:$HOME/flutter/bin:$ANDROID_HOME/platform-tools:$PATH"
 
 ACTION="${1:-linux}"

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:aura_music/models/song_model.dart';
 import 'package:aura_music/services/lyrics_service.dart';
 import 'package:aura_music/services/player_service.dart';
+import 'package:aura_music/services/library_state_store.dart';
 import 'package:aura_music/services/storage_service.dart';
 import 'package:aura_music/widgets/fullscreen_player.dart';
 import 'package:aura_music/widgets/lyrics_view.dart';
@@ -111,6 +112,51 @@ void main() {
       expect(find.byTooltip('Cerrar letra'), findsOneWidget);
       expect(find.text('Primera línea'), findsOneWidget);
       expect(find.text('Segunda línea'), findsOneWidget);
+    } finally {
+      await tester.runAsync(() => player.stopAndClear());
+      player.dispose();
+      await _cleanup(tester, tmp);
+    }
+  });
+
+  testWidgets('Me gusta cambia de icono al tocarlo sin otro evento', (
+    WidgetTester tester,
+  ) async {
+    final (tmp, song) = await _setupSong(tester);
+    final player = PlayerService();
+    final storage = MusicStorageService(
+      stateStore: LibraryStateStore(directoryProvider: () async => tmp),
+    );
+    await tester.runAsync(() async {
+      player.linuxProcessStarter = (exe, args) async {
+        return Process.start('sleep', ['30']);
+      };
+      await player.playSong(song, playlist: [song]);
+    });
+
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider.value(value: player),
+              ChangeNotifierProvider.value(value: storage),
+            ],
+            child: FullscreenPlayer(onCollapse: () {}),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byIcon(Icons.thumb_up_outlined), findsOneWidget);
+
+      // Mismo efecto que tocar la píldora; guardar escribe en disco, así que
+      // va en tiempo real (en el reloj simulado la escritura no termina).
+      await tester.runAsync(() => storage.toggleFavorite(song));
+      await tester.pump();
+
+      expect(song.isFavorite, isTrue);
+      expect(find.byIcon(Icons.thumb_up), findsOneWidget);
+      expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
     } finally {
       await tester.runAsync(() => player.stopAndClear());
       player.dispose();
