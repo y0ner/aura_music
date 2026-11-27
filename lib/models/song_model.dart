@@ -11,6 +11,7 @@ class Song {
   final bool isExplicit;
   bool isFavorite;
   final String category;
+  final DateTime? addedAt;
 
   Song({
     required this.id,
@@ -23,7 +24,16 @@ class Song {
     this.isExplicit = false,
     this.isFavorite = false,
     this.category = 'General',
+    this.addedAt,
   });
+
+  /// Texto que se guarda cuando el archivo no trae artista.
+  static const String unknownArtist = 'Artista desconocido';
+
+  /// `false` si el artista es desconocido: la interfaz no debe mostrar
+  /// «Artista desconocido», solo la duración u otro dato real.
+  bool get hasKnownArtist =>
+      artist.trim().isNotEmpty && artist.trim() != unknownArtist;
 
   String get formattedDuration {
     final minutes = duration.inMinutes;

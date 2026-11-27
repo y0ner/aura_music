@@ -1,243 +1,195 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/storage_service.dart';
-import '../services/player_service.dart';
-import '../models/song_model.dart';
-import '../widgets/explicit_badge.dart';
 
+import '../models/song_model.dart';
+import '../services/player_service.dart';
+import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/song_tile.dart';
+
+enum _SongSort {
+  title('Título'),
+  artist('Artista'),
+  duration('Duración');
+
+  final String label;
+  const _SongSort(this.label);
+}
+
+/// Vista de todas las canciones de la biblioteca, filtrables por carpeta real
+/// y ordenables por título, artista o duración.
 class DownloadsScreen extends StatefulWidget {
-  const DownloadsScreen({super.key});
+  final double bottomInset;
+
+  const DownloadsScreen({super.key, this.bottomInset = 80});
 
   @override
   State<DownloadsScreen> createState() => _DownloadsScreenState();
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
-  String _selectedCategory = 'Todos';
-  String _sortBy = 'title'; // 'title', 'artist', 'duration'
-
-  final List<String> _categories = [
-    'Todos',
-    'Fiesta',
-    'Romance',
-    'Entrenamiento',
-    'Danza',
-    'Trap',
-  ];
+  String _selectedCategory = 'Todas';
+  _SongSort _sortBy = _SongSort.title;
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<MusicStorageService, PlayerService>(
-      builder: (context, storage, player, child) {
+    // Solo escucha la biblioteca: el reproductor se usa para acciones
+    // (listen: false) y así reproducir/pausar no redibuja la pantalla.
+    return Consumer<MusicStorageService>(
+      builder: (context, storage, child) {
+        final player = Provider.of<PlayerService>(context, listen: false);
         if (storage.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
-        List<Song> songs = List.from(storage.allSongs);
+        final categories = <String>{};
+        for (final song in storage.allSongs) {
+          final category = song.category.trim();
+          if (category.isNotEmpty) {
+            categories.add(category);
+          }
+        }
+        final sortedCategories = categories.toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        final chips = ['Todas', ...sortedCategories];
 
-        // Filter by category
-        if (_selectedCategory != 'Todos') {
-          songs = songs.where((s) {
-            return s.category.toLowerCase().contains(_selectedCategory.toLowerCase()) ||
-                   s.album.toLowerCase().contains(_selectedCategory.toLowerCase()) ||
-                   s.title.toLowerCase().contains(_selectedCategory.toLowerCase());
-          }).toList();
+        final activeCategory =
+            _selectedCategory == 'Todas' || categories.contains(_selectedCategory)
+                ? _selectedCategory
+                : 'Todas';
+
+        var songs = List<Song>.from(storage.allSongs);
+        if (activeCategory != 'Todas') {
+          songs = songs
+              .where((s) => s.category.trim() == activeCategory)
+              .toList();
         }
 
-        // Sort songs
-        if (_sortBy == 'title') {
-          songs.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-        } else if (_sortBy == 'artist') {
-          songs.sort((a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()));
-        } else if (_sortBy == 'duration') {
-          songs.sort((a, b) => b.duration.compareTo(a.duration));
-        }
+        _sortSongs(songs);
+
+        final countText =
+            songs.length == 1 ? '1 canción' : '${songs.length} canciones';
 
         return RefreshIndicator(
-          color: Colors.white,
-          backgroundColor: const Color(0xFF212121),
+          color: AppTheme.textPrimary,
+          backgroundColor: AppTheme.surfaceHigh,
           onRefresh: () => storage.scanLibrary(),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // Filter Chips (Fiesta, Romance, Entrenamiento, etc.)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 12),
-                  child: SizedBox(
-                    height: 38,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _categories.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 10),
-                      itemBuilder: (context, index) {
-                        final cat = _categories[index];
-                        final isSelected = _selectedCategory == cat;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedCategory = cat;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF212121),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.white
-                                    : const Color(0xFF333333),
-                                width: 1,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              cat,
-                              style: TextStyle(
-                                color: isSelected ? Colors.black : Colors.white,
-                                fontSize: 13,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+              if (chips.length > 1)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      top: AppTheme.space4,
+                      bottom: AppTheme.space8,
+                    ),
+                    child: SizedBox(
+                      height: AppTheme.chipHeight,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.pagePadding,
+                        ),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: chips.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(width: AppTheme.space8),
+                        itemBuilder: (context, index) {
+                          final cat = chips[index];
+                          final isSelected = activeCategory == cat;
+                          return _FilterChipButton(
+                            label: cat,
+                            selected: isSelected,
+                            onTap: () => setState(() => _selectedCategory = cat),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // Sort Section Header ("≡ Ordenar")
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.space8,
+                    0,
+                    AppTheme.pagePadding,
+                    AppTheme.space4,
+                  ),
                   child: Row(
                     children: [
-                      GestureDetector(
+                      InkWell(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                         onTap: () => _showSortModal(context),
-                        behavior: HitTestBehavior.opaque,
-                        child: Row(
-                          children: const [
-                            Icon(Icons.sort_rounded, color: Colors.white, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'Ordenar',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minHeight: AppTheme.minTouch,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.space8,
                             ),
-                          ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.sort_rounded,
+                                  color: AppTheme.textPrimary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: AppTheme.space8),
+                                Text(_sortBy.label, style: AppTheme.label),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                       const Spacer(),
-                      Text(
-                        '${songs.length} pistas',
-                        style: const TextStyle(
-                          color: Color(0xFFAAAAAA),
-                          fontSize: 12.5,
-                        ),
-                      ),
+                      Text(countText, style: AppTheme.itemSubtitle),
                     ],
                   ),
                 ),
               ),
 
-              // Songs List
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final song = songs[index];
-                    final isCurrent = player.currentSong?.id == song.id;
-
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 4,
+              if (songs.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        AppTheme.space24,
+                        AppTheme.space24,
+                        AppTheme.space24,
+                        widget.bottomInset,
                       ),
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          color: const Color(0xFF222222),
-                          child: song.artworkBytes != null
-                              ? Image.memory(
-                                  song.artworkBytes!,
-                                  fit: BoxFit.cover,
-                                )
-                              : const Center(
-                                  child: Icon(
-                                    Icons.music_note,
-                                    color: Colors.white54,
-                                    size: 26,
-                                  ),
-                                ),
-                        ),
+                      child: Text(
+                        storage.allSongs.isEmpty
+                            ? 'No hay canciones en tu biblioteca'
+                            : 'No hay canciones en esta carpeta',
+                        textAlign: TextAlign.center,
+                        style: AppTheme.itemSubtitle,
                       ),
-                      title: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isCurrent ? const Color(0xFFFF4040) : Colors.white,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Row(
-                          children: [
-                            if (song.isExplicit) const ExplicitBadge(size: 13),
-                            Expanded(
-                              child: Text(
-                                '${song.artist} • ${song.formattedDuration}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFFAAAAAA),
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(
-                          Icons.more_vert_rounded,
-                          color: Color(0xFFAAAAAA),
-                          size: 20,
-                        ),
-                        onPressed: () => _showSongMenu(context, song, storage),
-                        splashRadius: 18,
-                      ),
-                      onTap: () {
-                        player.playSong(song, playlist: songs);
-                      },
-                    );
-                  },
-                  childCount: songs.length,
+                    ),
+                  ),
+                )
+              else ...[
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final song = songs[index];
+                      return SongTile(
+                        song: song,
+                        onTap: () => player.playSong(song, playlist: songs),
+                        onMore: () => _showSongMenu(context, song, storage),
+                      );
+                    },
+                    childCount: songs.length,
+                  ),
                 ),
-              ),
-
-              // Bottom spacing for mini player
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 80),
-              ),
+                SliverToBoxAdapter(
+                  child: SizedBox(height: widget.bottomInset),
+                ),
+              ],
             ],
           ),
         );
@@ -245,53 +197,56 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     );
   }
 
+  void _sortSongs(List<Song> songs) {
+    switch (_sortBy) {
+      case _SongSort.title:
+        songs.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
+      case _SongSort.artist:
+        songs.sort((a, b) {
+          if (a.hasKnownArtist != b.hasKnownArtist) {
+            return a.hasKnownArtist ? -1 : 1;
+          }
+          return a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+        });
+      case _SongSort.duration:
+        songs.sort((a, b) => b.duration.compareTo(a.duration));
+    }
+  }
+
   void _showSortModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTheme.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
       ),
       builder: (ctx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
+              Padding(
+                padding: const EdgeInsets.all(AppTheme.pagePadding),
                 child: Text(
                   'Ordenar por',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: AppTheme.itemTitle.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
-              ListTile(
-                title: const Text('Título', style: TextStyle(color: Colors.white)),
-                trailing: _sortBy == 'title' ? const Icon(Icons.check, color: Colors.white) : null,
-                onTap: () {
-                  setState(() => _sortBy = 'title');
-                  Navigator.pop(ctx);
-                },
-              ),
-              ListTile(
-                title: const Text('Artista', style: TextStyle(color: Colors.white)),
-                trailing: _sortBy == 'artist' ? const Icon(Icons.check, color: Colors.white) : null,
-                onTap: () {
-                  setState(() => _sortBy = 'artist');
-                  Navigator.pop(ctx);
-                },
-              ),
-              ListTile(
-                title: const Text('Duración', style: TextStyle(color: Colors.white)),
-                trailing: _sortBy == 'duration' ? const Icon(Icons.check, color: Colors.white) : null,
-                onTap: () {
-                  setState(() => _sortBy = 'duration');
-                  Navigator.pop(ctx);
-                },
-              ),
+              for (final option in _SongSort.values)
+                ListTile(
+                  title: Text(option.label, style: AppTheme.itemTitle),
+                  trailing: _sortBy == option
+                      ? const Icon(Icons.check, color: AppTheme.textPrimary)
+                      : null,
+                  onTap: () {
+                    setState(() => _sortBy = option);
+                    Navigator.pop(ctx);
+                  },
+                ),
             ],
           ),
         );
@@ -306,9 +261,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTheme.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -318,11 +275,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               ListTile(
                 leading: Icon(
                   song.isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: song.isFavorite ? const Color(0xFFFF4081) : Colors.white,
+                  color:
+                      song.isFavorite ? AppTheme.accent : AppTheme.textPrimary,
                 ),
                 title: Text(
-                  song.isFavorite ? 'Quitar de favoritos' : 'Añadir a "Música que te gustó"',
-                  style: const TextStyle(color: Colors.white),
+                  song.isFavorite
+                      ? 'Quitar de favoritos'
+                      : 'Añadir a "Música que te gustó"',
+                  style: AppTheme.itemTitle,
                 ),
                 onTap: () {
                   storage.toggleFavorite(song);
@@ -330,18 +290,53 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.folder_open, color: Colors.white),
-                title: const Text('Ruta de archivo', style: TextStyle(color: Colors.white)),
-                subtitle: Text(
-                  song.filePath,
-                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                leading: const Icon(
+                  Icons.folder_open,
+                  color: AppTheme.textPrimary,
                 ),
+                title: const Text('Ruta de archivo', style: AppTheme.itemTitle),
+                subtitle: Text(song.filePath, style: AppTheme.caption),
                 onTap: () => Navigator.pop(ctx),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _FilterChipButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterChipButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppTheme.textPrimary : AppTheme.chip,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        onTap: onTap,
+        child: Container(
+          height: AppTheme.chipHeight,
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.pagePadding),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: AppTheme.label.copyWith(
+              color: selected ? AppTheme.bg : AppTheme.textPrimary,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

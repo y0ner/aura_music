@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Aura · Inicio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#030303}
+a{color:#fff;text-decoration:none}a:hover{color:#fff}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #030303; color: #ffffff; font-family: Roboto, system-ui, sans-serif">
+
+  <div style="position: absolute; inset: 0 0 auto 0; height: 300px; background: radial-gradient(90% 100% at 30% 0%, rgba(139,92,255,0.22), rgba(3,3,3,0) 70%)" aria-hidden="true"></div>
+
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column">
+
+    <header style="position: relative; display: flex; align-items: center; justify-content: space-between; padding: 16px 8px 4px 16px">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true">
+          <defs><linearGradient id="mainA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A3D"></stop><stop offset="0.5" stop-color="#FF3D7F"></stop><stop offset="1" stop-color="#8B5CFF"></stop></linearGradient></defs>
+          <path d="M20 82 L50 18 L80 82" fill="none" stroke="url(#mainA)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M45 56.5 L45 71.5 L59 64 Z" fill="#ffffff" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"></path>
+        </svg>
+        <span style="font-family: Poppins, sans-serif; font-weight: 600; font-size: 22px; letter-spacing: -0.3px">Aura</span>
+      </div>
+      <div style="display: flex; align-items: center">
+        <a href="Buscar.dc.html" aria-label="Buscar" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        </a>
+        <button aria-label="Cuenta y ajustes" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer">
+          <span style="width: 32px; height: 32px; border-radius: 50%; background: #C9782E; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 14px">Y</span>
+        </button>
+      </div>
+    </header>
+
+    <div style="position: relative; display: flex; gap: 8px; padding: 8px 16px 12px; overflow: hidden">
+      <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+        <button onClick="{{ c.pick }}" style="{{ c.style }}">{{ c.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 4px 16px 0">
+      <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="9">
+        <a href="{{ t.href }}" aria-label="{{ t.name }}" style="{{ t.frame }}">
+          <sc-if value="{{ t.collage }}" hint-placeholder-val="{{ true }}">
+            <div style="position: absolute; inset: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr))">
+              <img src="{{ t.a }}" alt="" style="width: 100%; aspect-ratio: 1; object-fit: cover; display: block">
+              <img src="{{ t.b }}" alt="" style="width: 100%; aspect-ratio: 1; object-fit: cover; display: block">
+              <img src="{{ t.c }}" alt="" style="width: 100%; aspect-ratio: 1; object-fit: cover; display: block">
+              <img src="{{ t.d }}" alt="" style="width: 100%; aspect-ratio: 1; object-fit: cover; display: block">
+            </div>
+          </sc-if>
+          <sc-if value="{{ t.single }}" hint-placeholder-val="{{ false }}">
+            <img src="{{ t.a }}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+          </sc-if>
+          <sc-if value="{{ t.liked }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; inset: 0; background: linear-gradient(140deg, #FF8A3D 0%, #FF3D7F 48%, #8B5CFF 100%); display: flex; align-items: center; justify-content: center; padding-bottom: 18px">
+              <svg viewBox="0 0 24 24" width="46" height="46" fill="#ffffff" aria-hidden="true"><path d="M2 21h3.5V10H2zM22 11.2c0-1.1-.9-2-2-2h-5.6l.9-4.3v-.3c0-.4-.2-.8-.4-1.1L13.8 2.4 7.6 8.6c-.4.4-.6.9-.6 1.4v9c0 1.1.9 2 2 2h8.7c.8 0 1.5-.5 1.8-1.2l2.4-6.3c.1-.2.1-.5.1-.7z"></path></svg>
+            </div>
+          </sc-if>
+          <sc-if value="{{ t.playing }}" hint-placeholder-val="{{ false }}">
+            <span style="position: absolute; top: 6px; left: 6px; width: 24px; height: 24px; border-radius: 6px; background: rgba(0,0,0,0.65); display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding-bottom: 6px; box-sizing: border-box" aria-label="Sonando ahora">
+              <span style="width: 3px; height: 8px; border-radius: 2px; background: {{ accent }}"></span>
+              <span style="width: 3px; height: 12px; border-radius: 2px; background: {{ accent }}"></span>
+              <span style="width: 3px; height: 6px; border-radius: 2px; background: {{ accent }}"></span>
+            </span>
+          </sc-if>
+          <span style="position: absolute; inset: auto 0 0 0; height: 56px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.82))" aria-hidden="true"></span>
+          <span style="position: absolute; left: 8px; right: 6px; bottom: 7px; display: flex; align-items: center; gap: 2px">
+            <span class="ell" style="flex: 1; min-width: 0; font-size: 14px; font-weight: 500">{{ t.name }}</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+          </span>
+        </a>
+      </sc-for>
+    </div>
+
+    <div style="position: relative; display: flex; justify-content: center; gap: 6px; padding: 12px 0 0" aria-hidden="true">
+      <span style="width: 8px; height: 8px; border-radius: 50%; background: #ffffff"></span>
+      <span style="width: 8px; height: 8px; border-radius: 50%; background: #4A4A4A"></span>
+      <span style="width: 8px; height: 8px; border-radius: 50%; background: #4A4A4A"></span>
+    </div>
+
+    <section style="position: relative; padding: 20px 0 0">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px 12px">
+        <h2 style="margin: 0; font-family: Poppins, sans-serif; font-weight: 600; font-size: 24px; letter-spacing: -0.3px">Escuchado hace poco</h2>
+        <button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #3A3A3A; background: none; color: #ffffff; font: 500 14px Roboto, sans-serif; cursor: pointer">Más</button>
+      </div>
+      <div style="display: flex; gap: 12px; padding: 0 16px; overflow: hidden">
+        <sc-for list="{{ recent }}" as="r" hint-placeholder-count="3">
+          <a href="Reproductor.dc.html" style="width: 144px; flex: none; display: flex; flex-direction: column; gap: 6px">
+            <img src="{{ r.img }}" alt="" style="width: 144px; height: 144px; border-radius: 8px; object-fit: cover; display: block">
+            <span class="ell" style="font-size: 14px; font-weight: 500">{{ r.title }}</span>
+            <span class="ell" style="font-size: 14px; color: #AAAAAA; margin-top: -4px">{{ r.sub }}</span>
+          </a>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+
+  <a href="Reproductor.dc.html" aria-label="Abrir reproductor: Coronamos" style="position: absolute; left: 0; right: 0; bottom: 72px; height: 64px; background: #1F1F1F; display: flex; align-items: center; gap: 12px; padding: 0 4px 0 12px; box-sizing: border-box">
+    <span style="position: absolute; left: 0; top: 0; height: 2px; width: 100%; background: #3A3A3A" aria-hidden="true"></span>
+    <span style="position: absolute; left: 0; top: 0; height: 2px; width: 38%; background: {{ accent }}" aria-hidden="true"></span>
+    <img src="/_blob/12b2d474d815a59967247ceee1d7e204" alt="" style="width: 44px; height: 44px; border-radius: 4px; object-fit: cover; flex: none">
+    <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+      <span class="ell" style="font-size: 16px; font-weight: 500">Coronamos</span>
+      <span class="ell" style="font-size: 14px; color: #AAAAAA">Lito Kirino y Anuel AA</span>
+    </span>
+    <span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="#ffffff"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+    </span>
+    <span style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="#ffffff"><path d="M5 5.5v13l10-6.5z"></path><rect x="16.5" y="5.5" width="2.5" height="13" rx="1"></rect></svg>
+    </span>
+  </a>
+
+  <nav aria-label="Navegación principal" style="position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: #0F0F0F; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-bottom: 8px; box-sizing: border-box">
+    <a href="Main.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="#ffffff" aria-hidden="true"><path d="M12 3 3 10.5V21h6.5v-6h5v6H21V10.5z"></path></svg>
+      <span style="font-size: 12px; font-weight: 700">Inicio</span>
+    </a>
+    <a href="Buscar.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <span style="font-size: 12px">Buscar</span>
+    </a>
+    <a href="Biblioteca.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"></path></svg>
+      <span style="font-size: 12px">Biblioteca</span>
+    </a>
+    <a href="Anadir.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg>
+      <span style="font-size: 12px">Añadir</span>
+    </a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FF3D7F","options":["#FF3D7F","#8B5CFF","#FF8A3D","#FFFFFF"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { chip: 0 };
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#FF3D7F';
+    const labels = ['Recién añadidas', 'Trap', 'Urbano', 'Synth-pop', 'Con letra'];
+    const chips = labels.map((label, i) => {
+      const on = this.state.chip === i;
+      return {
+        label,
+        pick: () => this.setState({ chip: i }),
+        style: 'flex: none; height: 40px; padding: 0 14px; border-radius: 8px; border: 0; cursor: pointer; font: 500 14px Roboto, sans-serif; ' +
+          (on ? 'background: #ffffff; color: #030303' : 'background: #272727; color: #ffffff'),
+      };
+    });
+    const frameBase = 'position: relative; display: block; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #212121; ';
+    const tiles = [
+      { name: 'Trap Latino Malandro', href: 'Playlist.dc.html', collage: true, playing: true,
+        a: '/_blob/37ffe2c2b0774b4ca275e0ad779c3e46', b: '/_blob/12b2d474d815a59967247ceee1d7e204', c: '/_blob/20b0e35b8cf39a683e0c8a4fb48079c3', d: '/_blob/875ead378e8e6030beffc42f5841e2ba' },
+      { name: '#1 Urbano 😏🔥💯', href: 'Playlist.dc.html', collage: true,
+        a: '/_blob/42760c6db9f581fc7147d610b99bc9d8', b: '/_blob/5facff90f1dfb7437c1ac0124b1a9d0e', c: '/_blob/bdebc9eff9e3f72e95ccee6c2874a43e', d: '/_blob/e87deaee074bd35ff66918a12c48aec9' },
+      { name: 'Música que te gustó', href: 'MeGusta.dc.html', liked: true },
+      { name: '#5 Trap Clasico 💥🥵', href: 'Playlist.dc.html', collage: true,
+        a: '/_blob/bdc1c5d995dc6608cfc0210e3ce0504a', b: '/_blob/2705dedb4abcfc0dfbcfa1ce9a0ad861', c: '/_blob/6af0aa8c7ad1efe8a4ba24b9d430e397', d: '/_blob/1eb9758c5e022da3340c24f14aadcd5b' },
+      { name: '#34 Synth-pop', href: 'Playlist.dc.html', collage: true,
+        a: '/_blob/72c058f1bd2d7ecf53a7c5dc96085b4f', b: '/_blob/ba2c27bac4e8d621fe5432493cd5f396', c: '/_blob/1817a958e1596a83c70be733d332ee4e', d: '/_blob/b0aa710cc51f37bdb4ed4484318b551f' },
+      { name: 'Recién añadidas', href: 'Playlist.dc.html', collage: true,
+        a: '/_blob/46b943a622a7ed93498609dbb8721149', b: '/_blob/f87229c7785c6ccda8f1f6f5f86d7696', c: '/_blob/91b054cae00beb477c4fb03a8a287dff', d: '/_blob/2f2e3efb35d17cabdb6b87961ba253e2' },
+      { name: 'Más escuchadas', href: 'Playlist.dc.html', collage: true,
+        a: '/_blob/82ae92f1a5cfd8dd076bda6ee2d1beb5', b: '/_blob/ce77d15f12bad09a51212d2ab35b0d55', c: '/_blob/adb5d92a441f1e89bf660f0637b6755e', d: '/_blob/44b6e462dfb09af95d80b35ba8a81f8e' },
+      { name: 'Mix · Anuel AA', href: 'Playlist.dc.html', single: true, a: '/_blob/2705dedb4abcfc0dfbcfa1ce9a0ad861' },
+      { name: 'Mix aleatorio', href: 'Reproductor.dc.html', single: true, a: '/_blob/03a492696495df1a0ce53df614981e08' },
+    ].map((t) => ({
+      collage: false, single: false, liked: false, playing: false, ...t,
+      frame: frameBase + (t.playing ? 'box-shadow: 0 0 0 2px #ffffff' : ''),
+    }));
+    const recent = [
+      { img: '/_blob/ce77d15f12bad09a51212d2ab35b0d55', title: 'PERO NO TE ENAMORES', sub: 'Fuerza Regida' },
+      { img: '/_blob/ba2c27bac4e8d621fe5432493cd5f396', title: 'Moonlight', sub: 'Kali Uchis' },
+      { img: '/_blob/82ae92f1a5cfd8dd076bda6ee2d1beb5', title: 'GALACTICOS', sub: 'Bigg Danny y El Americano 4KT' },
+    ];
+    return { accent, chips, tiles, recent };
+  }
+}
+</script>
+</body>
+</html>

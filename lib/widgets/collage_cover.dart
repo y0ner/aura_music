@@ -1,6 +1,108 @@
-import 'package:flutter/material.dart';
-import '../models/playlist_model.dart';
+import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
+
+import 'cover_image.dart';
+import '../models/playlist_model.dart';
+import '../theme/app_theme.dart';
+
+/// Carátula de playlist: degradado de marca para «Música que te gustó»,
+/// collage 2 × 2 con 4 carátulas, imagen única con 1–3, o nota sobre
+/// [AppTheme.surfaceHigh] si no hay ninguna.
+class PlaylistArtwork extends StatelessWidget {
+  final Playlist playlist;
+  final double size;
+  final double radius;
+
+  const PlaylistArtwork({
+    super.key,
+    required this.playlist,
+    required this.size,
+    this.radius = AppTheme.radiusMedium,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = _buildContent();
+    final clipped = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: content,
+    );
+
+    if (size.isFinite) {
+      return SizedBox(width: size, height: size, child: clipped);
+    }
+    return SizedBox.expand(child: clipped);
+  }
+
+  Widget _buildContent() {
+    if (playlist.id == 'liked_songs_auto') {
+      final iconSize = size.isFinite ? size * 0.48 : 64.0;
+      return Container(
+        decoration: const BoxDecoration(gradient: AppTheme.brandGradient),
+        child: Center(
+          child: Icon(
+            Icons.thumb_up,
+            color: AppTheme.textPrimary,
+            size: iconSize,
+          ),
+        ),
+      );
+    }
+
+    final artworks = playlist.collageArtworks;
+    if (artworks.length >= 4) {
+      return Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _artworkImage(artworks[0])),
+                Expanded(child: _artworkImage(artworks[1])),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _artworkImage(artworks[2])),
+                Expanded(child: _artworkImage(artworks[3])),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (artworks.isNotEmpty) {
+      return _artworkImage(artworks.first);
+    }
+
+    final noteSize = size.isFinite ? size * 0.42 : 48.0;
+    return ColoredBox(
+      color: AppTheme.surfaceHigh,
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          color: AppTheme.textSecondary,
+          size: noteSize,
+        ),
+      ),
+    );
+  }
+
+  Widget _artworkImage(Uint8List bytes) {
+    return CoverImage(
+      bytes,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      gaplessPlayback: true,
+    );
+  }
+}
+
+/// Tarjeta cuadrada de playlist usada en la cuadrícula de Biblioteca.
 class CollageCover extends StatelessWidget {
   final Playlist playlist;
   final double size;
@@ -17,203 +119,63 @@ class CollageCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: size,
-        height: size,
-        color: const Color(0xFF1C1C1C),
-        child: Stack(
-          children: [
-            // Background Artwork / Collage
-            Positioned.fill(
-              child: _buildArtworkContent(),
-            ),
-
-            // Top-right 3 dots menu
-            Positioned(
-              top: 4,
-              right: 4,
-              child: GestureDetector(
-                onTap: onMenuPressed,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.more_vert,
-                    color: Colors.white,
-                    size: 20,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black54,
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Floating Play button on bottom right
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: onPlayPressed,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC000000),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildArtworkContent() {
-    if (playlist.isAutoGenerated) {
-      // "Música que te gustó" like card from Screenshot 1
-      return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF6B58F5),
-              Color(0xFFD42E94),
-              Color(0xFFE83E8C),
-            ],
-          ),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.thumb_up_rounded,
-            color: Colors.white,
-            size: 64,
-          ),
-        ),
-      );
-    }
-
-    final artworks = playlist.collageArtworks;
-
-    if (artworks.length >= 4) {
-      // 2x2 Grid of real embedded album artworks
-      return Column(
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(child: Image.memory(artworks[0], fit: BoxFit.cover)),
-                Expanded(child: Image.memory(artworks[1], fit: BoxFit.cover)),
-              ],
-            ),
+          PlaylistArtwork(
+            playlist: playlist,
+            size: size,
+            radius: AppTheme.radiusMedium,
           ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(child: Image.memory(artworks[2], fit: BoxFit.cover)),
-                Expanded(child: Image.memory(artworks[3], fit: BoxFit.cover)),
-              ],
-            ),
-          ),
-        ],
-      );
-    } else if (artworks.length == 1) {
-      return Image.memory(artworks[0], fit: BoxFit.cover);
-    }
-
-    // Default aesthetic 2x2 simulated mosaic for local folders with emojis
-    return _buildStylizedMosaic();
-  }
-
-  Widget _buildStylizedMosaic() {
-    // Extract emoji or first letters from folder name
-    final emojiRegex = RegExp(r'[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]', unicode: true);
-    final match = emojiRegex.firstMatch(playlist.name);
-    final emoji = match != null ? match.group(0) : '🎵';
-
-    // Stylish colors for quadrants
-    final colors = [
-      const Color(0xFF2E2E38),
-      const Color(0xFF1E262C),
-      const Color(0xFF281F26),
-      const Color(0xFF212520),
-    ];
-
-    return Column(
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  color: colors[0],
-                  child: Center(
-                    child: Text(
-                      emoji ?? '🎵',
-                      style: const TextStyle(fontSize: 24),
+          if (onMenuPressed != null)
+            Positioned(
+              top: AppTheme.space4,
+              right: AppTheme.space4,
+              child: IconButton(
+                onPressed: onMenuPressed,
+                tooltip: 'Más opciones',
+                icon: const Icon(
+                  Icons.more_vert,
+                  color: AppTheme.textPrimary,
+                  size: 20,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black54,
+                      blurRadius: 4,
                     ),
+                  ],
+                ),
+                constraints: const BoxConstraints.tightFor(
+                  width: AppTheme.minTouch,
+                  height: AppTheme.minTouch,
+                ),
+              ),
+            ),
+          if (onPlayPressed != null)
+            Positioned(
+              bottom: AppTheme.space8,
+              right: AppTheme.space8,
+              child: Material(
+                color: AppTheme.textPrimary,
+                shape: const CircleBorder(),
+                elevation: 4,
+                child: IconButton(
+                  onPressed: onPlayPressed,
+                  tooltip: 'Reproducir',
+                  color: AppTheme.bg,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                  constraints: const BoxConstraints.tightFor(
+                    width: AppTheme.chipHeight,
+                    height: AppTheme.chipHeight,
                   ),
                 ),
               ),
-              Expanded(
-                child: Container(
-                  color: colors[1],
-                  child: const Center(
-                    child: Icon(Icons.graphic_eq_rounded, color: Colors.white30, size: 24),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  color: colors[2],
-                  child: const Center(
-                    child: Icon(Icons.album_rounded, color: Colors.white30, size: 24),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  color: colors[3],
-                  child: const Center(
-                    child: Icon(Icons.music_note_rounded, color: Colors.white30, size: 24),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+        ],
+      ),
     );
   }
 }

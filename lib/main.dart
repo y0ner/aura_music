@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'services/aura_audio_handler.dart';
 import 'services/linux_mpris_service.dart';
 import 'services/lyrics_service.dart';
+import 'services/play_history.dart';
 import 'services/storage_service.dart';
 import 'services/player_service.dart';
 import 'services/youtube_service.dart';
@@ -32,7 +33,7 @@ void main() async {
       config: AudioServiceConfig(
         androidNotificationChannelId: 'com.yoner.auramusic.aura_music.playback',
         androidNotificationChannelName: 'Aura Music — Reproducción',
-        androidNotificationIcon: 'mipmap/ic_launcher',
+        androidNotificationIcon: 'drawable/ic_stat_aura',
         // Sin deslizar mientras suena (igual que YouTube Music). En pausa sí se
         // puede cerrar: audio_service exige stopForegroundOnPause con ongoing.
         androidNotificationOngoing: true,
@@ -54,6 +55,11 @@ void main() async {
 
   final storageService = MusicStorageService();
   final playerService = PlayerService(audioHandler);
+  connectPlayHistory(
+    playerService,
+    () => playerService.currentSong,
+    storageService.recordPlay,
+  );
 
   if (Platform.isLinux) {
     // Widget de medios del escritorio (MPRIS): permite ver y controlar la

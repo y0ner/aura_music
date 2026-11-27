@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -771,7 +772,14 @@ class YoutubeDownloadService extends ChangeNotifier {
           .get(Uri.parse(url))
           .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
+        final bytes = response.bodyBytes;
+        var toSave = bytes;
+        try {
+          toSave = await Isolate.run(() => removeLetterbox(bytes)) ?? bytes;
+        } catch (e) {
+          debugPrint('No se pudo recortar la carátula $videoId: $e');
+        }
+        await file.writeAsBytes(toSave);
       }
     } catch (e) {
       debugPrint('Carátula opcional no disponible: $e');
