@@ -1,0 +1,6 @@
+Aura Music 1.0.0:
+- Biblioteca offline por carpetas con soporte de emojis y filtros reales
+- Inicio con cuadrícula 3x3, Escuchado hace poco y búsqueda sin tildes
+- Reproductor con color de la carátula, fila A continuación y letras (.lrc y LRCLIB)
+- Cola de descargas desde YouTube con carátulas sin franjas negras
+- Controles multimedia en segundo plano y Me gusta persistentes

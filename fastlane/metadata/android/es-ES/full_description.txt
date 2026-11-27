@@ -1,0 +1,21 @@
+Aura Music es un reproductor de música offline por carpetas para Android con una interfaz oscura OLED y diseño propio A·Play.
+
+Cada subcarpeta dentro de Music/AuraMusic se convierte automáticamente en una playlist, incluso con emojis en el nombre. Organiza tu música directamente en carpetas locales, sin cuentas, sin anuncios y sin rastreo.
+
+Funciones principales:
+• Biblioteca por carpetas: Crea nuevas playlists desde la app, elige otra carpeta raíz y vuelve a escanear cuando quieras.
+• Inicio y accesos rápidos: Cuadrícula 3x3 con Música que te gustó, playlists, Recién añadidas, Más escuchadas y mixes por artista, además de Escuchado hace poco y chips por playlist.
+• Búsqueda instantánea: Busca canciones, artistas, carpetas y playlists sin distinguir tildes ni mayúsculas, con búsquedas recientes guardadas.
+• Biblioteca y Canciones: Alterna entre lista y cuadrícula, ordena playlists por nombre o canciones, y filtra canciones por carpeta u ordena por título, artista o duración.
+• Detalle de playlist y Música que te gustó: Collage 2x2 de carátulas, reproducir, aleatorio, añadir a la fila y favoritos persistentes con filtros por carpeta.
+• Reproductor dinámico: Fondo degradado tomado de la carátula, botones Me gusta y Guardar, aleatorio, repetir / repetir una, barra de progreso y fila A continuación.
+• Letras sincronizadas: Lee archivos .lrc junto al audio o busca letras sincronizadas en LRCLIB (sin cuenta) y las guarda en caché sin conexión. Toca cualquier verso para saltar a ese punto.
+• Añadir desde YouTube: Pega el enlace de una canción o playlist pública/no listada, elige la carpeta destino y descarga audio .m4a en cola con progreso, cancelación, reintentos y carátulas sin franjas negras.
+• Segundo plano: Notificación multimedia (MediaSession) con carátula, progreso, repetir y Me gusta.
+• Artista desde el archivo: Extrae artista y título de nombres como «Artista - Título (Official Video) ft. X» cuando el archivo no trae etiquetas.
+
+Privacidad:
+Sin cuentas, sin anuncios ni analíticas. La red solo se usa al descargar un enlace de YouTube o buscar letras en LRCLIB.
+
+Aviso:
+Aura Music no está afiliada a YouTube ni a Google. El usuario es responsable de descargar únicamente contenido que tenga derecho a guardar.
