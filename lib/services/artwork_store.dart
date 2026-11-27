@@ -8,7 +8,10 @@ import 'package:path_provider/path_provider.dart';
 
 typedef DirectoryProvider = Future<Directory> Function();
 
-const _normalizedMarkerName = '.normalizadas';
+// «-v2»: en las pruebas previas al lanzamiento se marcaron como revisadas
+// carátulas que no se habían recortado; el nombre nuevo hace que todas se
+// revisen una vez más.
+const _normalizedMarkerName = '.normalizadas-v2';
 
 Future<Directory> defaultArtworkDirectory() async =>
     Directory('${(await getApplicationSupportDirectory()).path}/covers');
@@ -104,7 +107,7 @@ bool _isBlackBand(img.Image image, int startY, int endY) {
 }
 
 /// Normaliza en segundo plano las carátulas `*.jpg` de [dir] que aún no figuran
-/// en `<dir>/.normalizadas`, recortando sus franjas negras cuando corresponda.
+/// en `<dir>/.normalizadas-v2`, recortando sus franjas negras cuando corresponda.
 ///
 /// Devuelve cuántos archivos recortó. Nunca lanza: los errores se registran
 /// con [debugPrint] y el archivo original permanece intacto.
@@ -239,8 +242,10 @@ Future<int> recoverMissingCovers(
         }
         final bytes = response.bodyBytes;
         Uint8List toSave = bytes;
+        var checked = false;
         try {
           toSave = await removeLetterboxInBackground(bytes) ?? bytes;
+          checked = true;
         } catch (e) {
           debugPrint('No se pudo recortar la carátula $id: $e');
         }
@@ -248,10 +253,14 @@ Future<int> recoverMissingCovers(
         final temp = File('${file.path}.tmp');
         await temp.writeAsBytes(toSave, flush: true);
         await temp.rename(file.path);
-        await normalizedMarker.writeAsString(
-          '$id.jpg\n',
-          mode: FileMode.append,
-        );
+        // Solo se marca como revisada si el recorte corrió; si falló, el
+        // próximo escaneo (normalizeArtworkDirectory) lo vuelve a intentar.
+        if (checked) {
+          await normalizedMarker.writeAsString(
+            '$id.jpg\n',
+            mode: FileMode.append,
+          );
+        }
         recovered++;
       } catch (e) {
         debugPrint('No se pudo recuperar la carátula $id: $e');

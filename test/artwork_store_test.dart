@@ -224,7 +224,7 @@ void main() {
     );
 
     test(
-      'normalizeArtworkDirectory recorta solo pendientes, escribe .normalizadas y evita redecodificar',
+      'normalizeArtworkDirectory recorta solo pendientes, escribe .normalizadas-v2 y evita redecodificar',
       () async {
         final dir = await Directory.systemTemp.createTemp('aura_norm_test');
         addTearDown(() async {
@@ -270,7 +270,7 @@ void main() {
         }
         expect(await fileC.readAsBytes(), equals(fullFrameC));
 
-        final markerFile = File('${dir.path}/.normalizadas');
+        final markerFile = File('${dir.path}/.normalizadas-v2');
         expect(await markerFile.exists(), isTrue);
         final lines = (await markerFile.readAsLines())
             .map((l) => l.trim())
@@ -289,7 +289,7 @@ void main() {
     );
 
     test(
-      'normalizeArtworkDirectory no lanza ante errores y respeta .normalizadas previo sin salto final',
+      'normalizeArtworkDirectory no lanza ante errores y respeta .normalizadas-v2 previo sin salto final',
       () async {
         final missing = Directory(
           '${Directory.systemTemp.path}/aura_no_existe_${DateTime.now().microsecondsSinceEpoch}',
@@ -301,7 +301,7 @@ void main() {
           if (await dir.exists()) await dir.delete(recursive: true);
         });
 
-        await File('${dir.path}/.normalizadas').writeAsString('prev.jpg');
+        await File('${dir.path}/.normalizadas-v2').writeAsString('prev.jpg');
         final corruptFile = File('${dir.path}/bad.jpg');
         final corruptBytes = Uint8List.fromList([1, 2, 3, 4]);
         await corruptFile.writeAsBytes(corruptBytes);
@@ -309,7 +309,7 @@ void main() {
         expect(await normalizeArtworkDirectory(dir), 0);
         expect(await corruptFile.readAsBytes(), equals(corruptBytes));
 
-        final lines = (await File('${dir.path}/.normalizadas').readAsLines())
+        final lines = (await File('${dir.path}/.normalizadas-v2').readAsLines())
             .map((l) => l.trim())
             .where((l) => l.isNotEmpty)
             .toList();
