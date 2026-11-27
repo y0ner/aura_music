@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -775,7 +774,7 @@ class YoutubeDownloadService extends ChangeNotifier {
         final bytes = response.bodyBytes;
         var toSave = bytes;
         try {
-          toSave = await Isolate.run(() => removeLetterbox(bytes)) ?? bytes;
+          toSave = await removeLetterboxInBackground(bytes) ?? bytes;
         } catch (e) {
           debugPrint('No se pudo recortar la carátula $videoId: $e');
         }

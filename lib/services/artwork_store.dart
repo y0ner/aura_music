@@ -108,6 +108,13 @@ bool _isBlackBand(img.Image image, int startY, int endY) {
 ///
 /// Devuelve cuántos archivos recortó. Nunca lanza: los errores se registran
 /// con [debugPrint] y el archivo original permanece intacto.
+/// [removeLetterbox] en otro isolate. Es una función de nivel superior a
+/// propósito: un cierre creado dentro de otra función arrastra su contexto
+/// (futuros, clientes HTTP, servicios) y `Isolate.run` falla con «object is
+/// unsendable». Aquí el cierre solo captura [bytes].
+Future<Uint8List?> removeLetterboxInBackground(Uint8List bytes) =>
+    Isolate.run(() => removeLetterbox(bytes));
+
 Future<int> normalizeArtworkDirectory(Directory dir) async {
   try {
     if (!await dir.exists()) return 0;
@@ -142,7 +149,7 @@ Future<int> normalizeArtworkDirectory(Directory dir) async {
       final tempFile = File('${item.file.path}.tmp');
       try {
         final bytes = await item.file.readAsBytes();
-        final cropped = await Isolate.run(() => removeLetterbox(bytes));
+        final cropped = await removeLetterboxInBackground(bytes);
         if (cropped != null) {
           await tempFile.writeAsBytes(cropped, flush: true);
           await tempFile.rename(item.file.path);
@@ -233,7 +240,7 @@ Future<int> recoverMissingCovers(
         final bytes = response.bodyBytes;
         Uint8List toSave = bytes;
         try {
-          toSave = await Isolate.run(() => removeLetterbox(bytes)) ?? bytes;
+          toSave = await removeLetterboxInBackground(bytes) ?? bytes;
         } catch (e) {
           debugPrint('No se pudo recortar la carátula $id: $e');
         }
