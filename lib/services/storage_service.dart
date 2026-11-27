@@ -136,11 +136,20 @@ class MusicStorageService extends ChangeNotifier {
     }
   }
 
+  /// Carpeta raíz alternativa solo para compilar capturas de demostración
+  /// (`--dart-define=AURA_DEMO_ROOT=Music/AuraDemo`). La APK publicada no la
+  /// define y usa siempre Music/AuraMusic.
+  static const String _demoRoot = String.fromEnvironment('AURA_DEMO_ROOT');
+
   Future<void> _resolveRootMusicDirectory() async {
     try {
       if (Platform.isAndroid) {
         // Try public Music/AuraMusic folder
-        final primaryPublic = Directory('/storage/emulated/0/Music/AuraMusic');
+        final primaryPublic = Directory(
+          _demoRoot.isEmpty
+              ? '/storage/emulated/0/Music/AuraMusic'
+              : '/storage/emulated/0/$_demoRoot',
+        );
         if (await primaryPublic.exists()) {
           _rootMusicDirectory = primaryPublic;
           return;
