@@ -276,4 +276,34 @@ void main() {
     await storage.toggleFavorite(liked);
     expect(storage.likedSongsPlaylist!.songs, [liked]);
   });
+
+  test('recupera una vez las carátulas que faltan y refresca la biblioteca',
+      () async {
+    await createEmptyM4a('Pop', 'Uno [aaaaaaaaaaa].m4a');
+    await createEmptyM4a('Pop', 'Sin id.m4a');
+    final calls = <Set<String>>[];
+    final storage = MusicStorageService(
+      artworkDirectory: () async => coversDir,
+      stateStore: LibraryStateStore(directoryProvider: () async => stateDir),
+      coverRecoverer: (dir, ids) async {
+        calls.add(ids.toSet());
+        await File('${dir.path}/aaaaaaaaaaa.jpg').writeAsBytes([1, 2, 3]);
+        return 1;
+      },
+    );
+    await storage.setCustomRootDirectory(rootDir.path);
+
+    Song uno() => storage.allSongs.firstWhere((s) => s.title == 'Uno');
+    for (var i = 0; i < 100 && uno().artworkBytes == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
+    expect(uno().artworkBytes, isNotNull);
+    expect(calls, [
+      {'aaaaaaaaaaa'},
+    ]);
+    // Otro escaneo en la misma sesión no vuelve a intentarlo.
+    await storage.scanLibrary();
+    expect(calls, hasLength(1));
+  });
 }

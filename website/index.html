@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aura Music · Tu música, sin conexión</title>
+<meta name="description" content="Aura Music es un reproductor de música para Android que funciona sin conexión: cada carpeta es una playlist, letras sincronizadas y descargas desde enlaces de YouTube. Sin anuncios ni rastreo. Código abierto bajo GPLv3.">
+<meta name="theme-color" content="#030303" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F7F5F8" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Aura Music · Tu música, sin conexión">
+<meta property="og:description" content="Reproductor de música offline para Android: playlists por carpetas, letras sincronizadas y descargas desde YouTube. Sin anuncios. GPLv3.">
+<meta property="og:image" content="https://aura-musica.vercel.app/img/og.png">
+<meta property="og:url" content="https://aura-musica.vercel.app/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Identidad de la app: negro OLED, acento rosa y degradado brasa → rosa → violeta solo en la marca. */
+:root{
+  --bg:#030303; --surface:#121214; --surface-2:#1C1C20; --line:#26262B;
+  --text:#FFFFFF; --text-2:#AAAAAA; --text-3:#7C7C84; --on-text:#030303;
+  --accent:#FF3D7F; --ember:#FF8A3D; --violet:#8B5CFF;
+  --grad:linear-gradient(135deg,#FF8A3D 0%,#FF3D7F 48%,#8B5CFF 100%);
+  --glow:rgba(139,92,255,.22);
+  --shadow:0 30px 70px rgba(0,0,0,.55);
+  --display:"Poppins",system-ui,sans-serif;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#F7F5F8; --surface:#FFFFFF; --surface-2:#EFEBF2; --line:#E2DCE7;
+  --text:#141218; --text-2:#5E5866; --text-3:#8C8694; --on-text:#FFFFFF;
+  --accent:#D81B60; --glow:rgba(139,92,255,.14); --shadow:0 30px 70px rgba(40,20,60,.18);
+  color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#F7F5F8; --surface:#FFFFFF; --surface-2:#EFEBF2; --line:#E2DCE7;
+  --text:#141218; --text-2:#5E5866; --text-3:#8C8694; --on-text:#FFFFFF;
+  --accent:#D81B60; --glow:rgba(139,92,255,.14); --shadow:0 30px 70px rgba(40,20,60,.18);
+  color-scheme:light}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{margin:0;font-family:var(--display);font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+
+/* Navegación */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:20;background:var(--bg)}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:20px;height:64px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font:600 20px/1 var(--display);letter-spacing:-.02em}
+.logo img{width:30px;height:30px;border-radius:8px}
+.nav-links{display:flex;gap:24px;margin-left:auto;font-size:14px;color:var(--text-2)}
+.nav-links a{text-decoration:none}.nav-links a:hover{color:var(--text)}
+.lang{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;font:500 12px/1 var(--sans)}
+.lang button{all:unset;cursor:pointer;padding:8px 11px;color:var(--text-2)}
+.lang button[aria-pressed="true"]{background:var(--text);color:var(--on-text)}
+@media (max-width:760px){.nav-links{display:none}.lang{margin-left:auto}}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:999px;font:600 15px/1 var(--sans);text-decoration:none;border:1px solid transparent;transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn-main{background:var(--text);color:var(--on-text)}
+.btn-line{border-color:var(--line);background:var(--surface);color:var(--text)}
+.btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* Héroe */
+.hero{position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-20% -10% auto 30%;height:620px;background:radial-gradient(closest-side,var(--glow),transparent);pointer-events:none}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-block:80px 64px}
+.hero h1{font-size:clamp(40px,6vw,70px);line-height:1.04;letter-spacing:-.035em}
+.lead{font-size:clamp(17px,1.6vw,19px);color:var(--text-2);max-width:33em;margin-top:22px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}
+.meta span{font:500 13px/1 var(--sans);color:var(--text-2);padding:9px 13px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.phones{position:relative;height:680px}
+.phone{position:absolute;width:262px;border-radius:34px;padding:9px;background:#0B0B0D;box-shadow:var(--shadow);border:1px solid #2A2A30}
+.phone img{border-radius:26px;width:100%}
+.phone.a{left:6%;top:30px;transform:rotate(-6deg)}
+.phone.b{right:4%;top:0;transform:rotate(5deg)}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 32px}
+  .phones{height:auto;display:flex;justify-content:center;gap:16px;padding-block:8px 24px}
+  .phone{position:relative;left:auto;right:auto;top:auto;width:44%;max-width:240px;border-radius:26px;padding:7px}
+  .phone img{border-radius:20px}
+  .phone.a{transform:rotate(-4deg)}.phone.b{transform:rotate(4deg);margin-top:36px}}
+
+/* Secciones */
+section{padding-block:88px}
+.head{max-width:720px;margin-bottom:44px}
+.head h2{font-size:clamp(30px,4vw,44px);line-height:1.1;margin-top:12px}
+.head p{color:var(--text-2);margin-top:14px;font-size:17px}
+
+/* Funciones */
+.features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:26px}
+.card .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--surface-2);margin-bottom:18px}
+.card .ic svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.card h3{font-size:19px}
+.card p{color:var(--text-2);margin-top:8px;font-size:15px}
+@media (max-width:900px){.features{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:600px){.features{grid-template-columns:1fr}}
+
+/* Franja oscura: Añadir desde YouTube */
+.band{background:#030303;color:#fff;border-block:1px solid #1C1C20;position:relative;overflow:hidden}
+.band::after{content:"";position:absolute;right:-10%;top:-30%;width:620px;height:620px;background:radial-gradient(closest-side,rgba(255,61,127,.20),transparent);pointer-events:none}
+.band .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.band .eyebrow{color:#8C8C94}
+.band h2{font-size:clamp(30px,4vw,44px);line-height:1.1;margin-top:12px}
+.band p.sub{color:#AAAAAA;margin-top:16px;font-size:17px}
+.steps{list-style:none;padding:0;margin:28px 0 0;display:grid;gap:14px}
+.steps li{display:flex;gap:14px;align-items:flex-start;color:#D9D9DE}
+.steps b{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:600 13px/1 var(--sans);background:var(--grad);color:#fff}
+.band .shots{display:flex;gap:18px;justify-content:center}
+.band .shots img{width:46%;max-width:250px;border-radius:24px;border:1px solid #26262B;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+.band .shots img:last-child{margin-top:48px}
+@media (max-width:900px){.band .wrap{grid-template-columns:1fr}}
+
+/* Galería */
+.gallery-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.gallery-grid figure{margin:0}
+.gallery-grid img{border-radius:20px;border:1px solid var(--line);width:100%}
+.gallery-grid figcaption{font-size:13px;color:var(--text-3);margin-top:10px;text-align:center}
+@media (max-width:900px){.gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Privacidad */
+.privacy-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.privacy-list div{padding:22px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.privacy-list b{display:block;font:600 17px/1.3 var(--display)}
+.privacy-list span{display:block;color:var(--text-2);font-size:15px;margin-top:6px}
+@media (max-width:760px){.privacy-list{grid-template-columns:1fr}}
+
+/* Descarga */
+.download-card{display:grid;grid-template-columns:auto 1fr;gap:36px;align-items:center;padding:36px;border-radius:28px;background:var(--surface);border:1px solid var(--line);position:relative;overflow:hidden}
+.download-card::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--grad)}
+.download-card .icon{width:128px;height:128px;border-radius:30px;box-shadow:var(--shadow)}
+.download-card h2{font-size:clamp(28px,3.4vw,38px)}
+.specs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 24px;margin:22px 0 26px}
+.specs dt{font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.specs dd{margin:6px 0 0;font-weight:600}
+.sha{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+.sha code{font:400 12.5px/1.5 var(--mono);color:var(--text-2);word-break:break-all;background:var(--surface-2);padding:10px 12px;border-radius:10px;flex:1;min-width:0}
+.copy{all:unset;cursor:pointer;font:600 13px/1 var(--sans);padding:11px 14px;border-radius:10px;border:1px solid var(--line)}
+.copy:focus-visible{outline:2px solid var(--accent)}
+@media (max-width:760px){.download-card{grid-template-columns:1fr;padding:26px}.specs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+footer{border-top:1px solid var(--line);padding-block:40px 56px;color:var(--text-3);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:18px 30px;align-items:center;justify-content:space-between}
+footer nav{display:flex;gap:20px}
+footer a{text-decoration:none}footer a:hover{color:var(--text)}
+.disclaimer{flex-basis:100%;font-size:13px;line-height:1.5}
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#"><img src="/img/icon.png" alt="" width="30" height="30">Aura</a>
+    <nav class="nav-links" aria-label="Secciones">
+      <a href="#funciones" data-i18n="nav.features">Funciones</a>
+      <a href="#capturas" data-i18n="nav.shots">Capturas</a>
+      <a href="#privacidad" data-i18n="nav.privacy">Privacidad</a>
+      <a href="#descargar" data-i18n="nav.download">Descargar</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Idioma / Language">
+      <button type="button" data-lang="es" aria-pressed="true">ES</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow" data-i18n="hero.eyebrow">Reproductor de música para Android · v1.0.0</p>
+        <h1><span data-i18n="hero.t1">Tu música,</span> <span class="grad-text" data-i18n="hero.t2">sin conexión.</span></h1>
+        <p class="lead" data-i18n="hero.lead">Cada carpeta es una playlist. Letras sincronizadas, una interfaz oscura inspirada en YouTube Music y descargas pegando un enlace. Sin cuenta, sin anuncios, sin rastreo.</p>
+        <div class="cta">
+          <a class="btn btn-main" href="https://github.com/y0ner/aura_music/releases/latest/download/aura-music-v1.0.0-arm64.apk">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span data-i18n="cta.download">Descargar APK</span>
+          </a>
+          <a class="btn btn-line" href="https://github.com/y0ner/aura_music">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+            <span data-i18n="cta.source">Código fuente</span>
+          </a>
+        </div>
+        <div class="meta">
+          <span data-i18n="meta.android">Android 7.0+</span>
+          <span>~22 MB</span>
+          <span data-i18n="meta.offline">Sin conexión</span>
+          <span>GPLv3</span>
+        </div>
+      </div>
+      <div class="phones" aria-hidden="true">
+        <div class="phone a"><img src="/img/s1.webp" alt="" width="540" height="1200"></div>
+        <div class="phone b"><img src="/img/s2.webp" alt="" width="540" height="1200"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="funciones">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow" data-i18n="feat.eyebrow">Funciones</p>
+        <h2 data-i18n="feat.title">Todo lo que esperas de un buen reproductor, en tu teléfono.</h2>
+      </div>
+      <div class="features">
+        <article class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <h3 data-i18n="f1.t">Playlists por carpetas</h3>
+          <p data-i18n="f1.d">Cada subcarpeta de Música/AuraMusic es una playlist, con emojis en el nombre. Crea carpetas o elige otra desde la app.</p>
+        </article>
+        <article class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+          <h3 data-i18n="f2.t">Un inicio que te conoce</h3>
+          <p data-i18n="f2.d">Accesos rápidos a Me gusta y tus playlists, «Recién añadidas», «Más escuchadas», mixes por artista y lo que escuchaste hace poco.</p>
+        </article>
+        <article class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/></svg></div>
+          <h3 data-i18n="f3.t">Letras sincronizadas</h3>
+          <p data-i18n="f3.d">Lee tus .lrc o las busca en LRCLIB y las guarda para usarlas sin conexión. Toca un verso para saltar a ese momento.</p>
+        </article>
+        <article class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18"/></svg></div>
+          <h3 data-i18n="f4.t">Un reproductor con color</h3>
+          <p data-i18n="f4.d">El fondo toma el color de la carátula. Aleatorio, repetir una, cola «A continuación», Me gusta y guardar en playlist.</p>
+        </article>
+        <article class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+          <h3 data-i18n="f5.t">Búsqueda sin tildes</h3>
+          <p data-i18n="f5.d">Encuentra canciones, artistas y playlists aunque escribas «asi» en lugar de «Así». Tus búsquedas recientes quedan a un toque.</p>
+        </article>
+        <article class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3z"/><path d="M3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg></div>
+          <h3 data-i18n="f6.t">Sigue sonando</h3>
+          <p data-i18n="f6.d">Reproducción en segundo plano con notificación multimedia: carátula, progreso, repetir y Me gusta. En Linux, control MPRIS.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow" data-i18n="band.eyebrow">Añadir música</p>
+        <h2 data-i18n="band.title">Pega un enlace. Escúchalo sin conexión.</h2>
+        <p class="sub" data-i18n="band.sub">Una canción o una playlist pública de YouTube, directo a la carpeta que elijas, con su carátula y su letra.</p>
+        <ol class="steps">
+          <li><b>1</b><span data-i18n="band.s1">Pega el enlace y toca «Analizar enlace».</span></li>
+          <li><b>2</b><span data-i18n="band.s2">Elige en qué playlist guardarla.</span></li>
+          <li><b>3</b><span data-i18n="band.s3">Sigue la cola de descargas: cancela, reintenta o limpia las terminadas.</span></li>
+        </ol>
+      </div>
+      <div class="shots">
+        <img src="/img/s7.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s7">
+        <img src="/img/s3.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s3">
+      </div>
+    </div>
+  </section>
+
+  <section id="capturas">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow" data-i18n="shots.eyebrow">Capturas</p>
+        <h2 data-i18n="shots.title">Oscura, rápida y tuya.</h2>
+      </div>
+      <div class="gallery-grid">
+        <figure><img src="/img/s1.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s1"><figcaption data-i18n="cap.s1">Inicio</figcaption></figure>
+        <figure><img src="/img/s2.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s2"><figcaption data-i18n="cap.s2">Reproductor</figcaption></figure>
+        <figure><img src="/img/s3.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s3"><figcaption data-i18n="cap.s3">Biblioteca</figcaption></figure>
+        <figure><img src="/img/s4.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s4"><figcaption data-i18n="cap.s4">Playlist</figcaption></figure>
+        <figure><img src="/img/s5.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s5"><figcaption data-i18n="cap.s5">Música que te gustó</figcaption></figure>
+        <figure><img src="/img/s6.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s6"><figcaption data-i18n="cap.s6">Buscar</figcaption></figure>
+        <figure><img src="/img/s7.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s7"><figcaption data-i18n="cap.s7">Añadir desde YouTube</figcaption></figure>
+        <figure><img src="/img/s8.webp" alt="" width="540" height="1200" loading="lazy" data-i18n-alt="alt.s8"><figcaption data-i18n="cap.s8">Canciones con filtros</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacidad">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow" data-i18n="priv.eyebrow">Privacidad</p>
+        <h2 data-i18n="priv.title">Tu música no sale de tu teléfono.</h2>
+        <p data-i18n="priv.sub">Aura solo usa internet cuando pegas un enlace de YouTube, cuando busca la letra de una canción en LRCLIB o cuando recupera la carátula de una canción que descargaste de YouTube.</p>
+      </div>
+      <div class="privacy-list">
+        <div><b data-i18n="p1.t">Sin cuenta</b><span data-i18n="p1.d">Abres la app y suena. No hay registro ni inicio de sesión.</span></div>
+        <div><b data-i18n="p2.t">Sin anuncios ni rastreo</b><span data-i18n="p2.d">Ninguna analítica, ningún SDK publicitario.</span></div>
+        <div><b data-i18n="p3.t">Código abierto</b><span data-i18n="p3.d">GPLv3: puedes leer, compilar y mejorar cada línea.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="descargar">
+    <div class="wrap">
+      <div class="download-card">
+        <img class="icon" src="/img/icon.png" alt="" width="128" height="128">
+        <div>
+          <h2>Aura Music 1.0.0</h2>
+          <dl class="specs">
+            <div><dt data-i18n="sp.date">Fecha</dt><dd data-i18n="sp.date.v">27 nov 2026</dd></div>
+            <div><dt data-i18n="sp.size">Tamaño</dt><dd>~22 MB</dd></div>
+            <div><dt data-i18n="sp.req">Requisitos</dt><dd data-i18n="sp.req.v">Android 7.0+ · arm64</dd></div>
+            <div><dt data-i18n="sp.license">Licencia</dt><dd>GPLv3</dd></div>
+            <div><dt data-i18n="sp.price">Precio</dt><dd data-i18n="sp.price.v">Gratis</dd></div>
+            <div><dt data-i18n="sp.lang">Idioma</dt><dd data-i18n="sp.lang.v">Español</dd></div>
+            <div class="sha">
+              <code id="sha">A7:79:B5:5E:1E:05:3B:A6:13:A0:A2:24:A6:18:EF:61:9D:BD:A0:62:76:26:5B:3A:CB:88:78:54:0E:F4:39:D8</code>
+              <button class="copy" id="copy-sha" type="button" data-i18n="sp.copy">Copiar</button>
+            </div>
+          </dl>
+          <div class="cta" style="margin-top:0">
+            <a class="btn btn-main" href="https://github.com/y0ner/aura_music/releases/latest/download/aura-music-v1.0.0-arm64.apk">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span data-i18n="cta.download">Descargar APK</span>
+            </a>
+            <a class="btn btn-line" href="https://github.com/y0ner/aura_music/releases" data-i18n="cta.notes">Notas de la versión</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Aura Music · <span data-i18n="foot.by">hecho por</span> <a href="https://github.com/y0ner">y0ner</a></span>
+    <nav>
+      <a href="https://github.com/y0ner/aura_music">GitHub</a>
+      <a href="https://github.com/y0ner/aura_music/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/y0ner/aura_music/blob/main/LICENSE" data-i18n="foot.license">Licencia</a>
+    </nav>
+    <p class="disclaimer" data-i18n="foot.disclaimer">Aura Music no está afiliada a YouTube ni a Google. Descargar contenido de YouTube puede ir contra sus Términos de servicio: descarga solo lo que tengas derecho a guardar.</p>
+  </div>
+</footer>
+
+<script>
+const EN = {
+  "nav.features":"Features","nav.shots":"Screenshots","nav.privacy":"Privacy","nav.download":"Download",
+  "hero.eyebrow":"Music player for Android · v1.0.0","hero.t1":"Your music,","hero.t2":"offline.",
+  "hero.lead":"Every folder is a playlist. Synced lyrics, a dark interface inspired by YouTube Music, and downloads by pasting a link. No account, no ads, no tracking.",
+  "cta.download":"Download APK","cta.source":"Source code","cta.notes":"Release notes",
+  "meta.android":"Android 7.0+","meta.offline":"Works offline",
+  "feat.eyebrow":"Features","feat.title":"Everything you expect from a good player, on your phone.",
+  "f1.t":"Folder playlists","f1.d":"Every subfolder of Music/AuraMusic is a playlist, emojis included. Create folders or pick another one from the app.",
+  "f2.t":"A home that knows you","f2.d":"Quick access to Liked music and your playlists, Recently added, Most played, artist mixes and what you played lately.",
+  "f3.t":"Synced lyrics","f3.d":"Reads your .lrc files or fetches them from LRCLIB and keeps them for offline use. Tap a line to jump there.",
+  "f4.t":"A player with color","f4.d":"The background takes the color of the artwork. Shuffle, repeat one, an Up next queue, Like and save to playlist.",
+  "f5.t":"Accent-insensitive search","f5.d":"Find songs, artists and playlists even if you type “asi” instead of “Así”. Recent searches are one tap away.",
+  "f6.t":"Keeps playing","f6.d":"Background playback with a media notification: artwork, progress, repeat and Like. MPRIS controls on Linux.",
+  "band.eyebrow":"Add music","band.title":"Paste a link. Listen offline.","band.sub":"A song or a public YouTube playlist, straight into the folder you choose, with its artwork and lyrics.",
+  "band.s1":"Paste the link and tap “Analyze link”.","band.s2":"Choose which playlist to save it to.","band.s3":"Follow the download queue: cancel, retry or clear finished items.",
+  "shots.eyebrow":"Screenshots","shots.title":"Dark, fast and yours.",
+  "cap.s1":"Home","cap.s2":"Player","cap.s3":"Library","cap.s4":"Playlist","cap.s5":"Liked music","cap.s6":"Search","cap.s7":"Add from YouTube","cap.s8":"Songs with filters",
+  "priv.eyebrow":"Privacy","priv.title":"Your music never leaves your phone.","priv.sub":"Aura only goes online when you paste a YouTube link, when it looks up a song’s lyrics on LRCLIB, or when it restores the cover of a song you downloaded from YouTube.",
+  "p1.t":"No account","p1.d":"Open the app and press play. No sign-up, no login.",
+  "p2.t":"No ads, no tracking","p2.d":"No analytics, no advertising SDKs.",
+  "p3.t":"Open source","p3.d":"GPLv3: read, build and improve every line.",
+  "sp.date":"Date","sp.date.v":"Nov 27, 2026","sp.size":"Size","sp.req":"Requirements","sp.req.v":"Android 7.0+ · arm64","sp.license":"License","sp.price":"Price","sp.price.v":"Free","sp.lang":"Language","sp.lang.v":"Spanish","sp.copy":"Copy","sp.copied":"Copied",
+  "foot.by":"made by","foot.license":"License","foot.disclaimer":"Aura Music is not affiliated with YouTube or Google. Downloading YouTube content may violate its Terms of Service: only download what you have the right to keep.",
+  "alt.s1":"Aura home screen with playlists grid","alt.s2":"Fullscreen player","alt.s3":"Library","alt.s4":"Playlist detail","alt.s5":"Liked music","alt.s6":"Search","alt.s7":"Add music from a YouTube link","alt.s8":"Songs filtered by folder"
+};
+const ES = {};
+document.querySelectorAll("[data-i18n]").forEach(el => ES[el.dataset.i18n] = el.textContent);
+const ALT_ES = {"alt.s1":"Inicio de Aura con la cuadrícula de playlists","alt.s2":"Reproductor completo","alt.s3":"Biblioteca","alt.s4":"Detalle de una playlist","alt.s5":"Música que te gustó","alt.s6":"Buscar","alt.s7":"Añadir música desde un enlace de YouTube","alt.s8":"Canciones filtradas por carpeta"};
+function setLang(lang){
+  const dict = lang === "en" ? EN : ES;
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => { const v = dict[el.dataset.i18n]; if (v) el.textContent = v; });
+  document.querySelectorAll("[data-i18n-alt]").forEach(el => { el.alt = (lang === "en" ? EN : ALT_ES)[el.dataset.i18nAlt] || ""; });
+  document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  try { localStorage.setItem("aura-lang", lang); } catch (e) {}
+}
+document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => setLang(b.dataset.lang)));
+let initial = "es";
+try { initial = localStorage.getItem("aura-lang") || (navigator.language || "es").slice(0, 2); } catch (e) {}
+setLang(initial === "en" ? "en" : "es");
+document.getElementById("copy-sha").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  try {
+    await navigator.clipboard.writeText(document.getElementById("sha").textContent.trim());
+    const lang = document.documentElement.lang;
+    btn.textContent = lang === "en" ? EN["sp.copied"] : "Copiado";
+    setTimeout(() => btn.textContent = lang === "en" ? EN["sp.copy"] : ES["sp.copy"], 1800);
+  } catch (err) { btn.textContent = "—"; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+Aura Music 1.0.0:
+- Folder-based offline library with emoji playlists and folder filters
+- Home quick-access grid, Recently Played, and accent-insensitive search
+- Player with cover-derived gradient, Up Next queue, and synced lyrics (.lrc & LRCLIB)
+- YouTube song/playlist download queue with cropped covers
+- Background MediaSession controls and persistent favorites

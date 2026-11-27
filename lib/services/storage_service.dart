@@ -59,11 +59,32 @@ class MusicStorageService extends ChangeNotifier {
   bool _isLoading = false;
   String _statusMessage = '';
 
+  /// Recupera las carátulas perdidas de lo descargado de YouTube (ver
+  /// [recoverMissingCovers]). En `flutter test` va apagado por defecto para
+  /// no salir a internet; las pruebas pueden inyectar uno falso.
+  final Future<int> Function(Directory dir, Iterable<String> videoIds)?
+  _coverRecoverer;
+  bool _coverRecoveryStarted = false;
+  bool _disposed = false;
+
   MusicStorageService({
     DirectoryProvider? artworkDirectory,
     LibraryStateStore? stateStore,
+    Future<int> Function(Directory dir, Iterable<String> videoIds)?
+    coverRecoverer,
   }) : _artworkDirectory = artworkDirectory ?? defaultArtworkDirectory,
-       _stateStore = stateStore ?? LibraryStateStore();
+       _stateStore = stateStore ?? LibraryStateStore(),
+       _coverRecoverer =
+           coverRecoverer ??
+           (Platform.environment.containsKey('FLUTTER_TEST')
+               ? null
+               : recoverMissingCovers);
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   Directory? get rootMusicDirectory => _rootMusicDirectory;
   /// Listas derivadas (recientes, top de artistas, mixes, Me gusta) ya
@@ -136,11 +157,20 @@ class MusicStorageService extends ChangeNotifier {
     }
   }
 
+  /// Carpeta raíz alternativa solo para compilar capturas de demostración
+  /// (`--dart-define=AURA_DEMO_ROOT=Music/AuraDemo`). La APK publicada no la
+  /// define y usa siempre Music/AuraMusic.
+  static const String _demoRoot = String.fromEnvironment('AURA_DEMO_ROOT');
+
   Future<void> _resolveRootMusicDirectory() async {
     try {
       if (Platform.isAndroid) {
         // Try public Music/AuraMusic folder
-        final primaryPublic = Directory('/storage/emulated/0/Music/AuraMusic');
+        final primaryPublic = Directory(
+          _demoRoot.isEmpty
+              ? '/storage/emulated/0/Music/AuraMusic'
+              : '/storage/emulated/0/$_demoRoot',
+        );
         if (await primaryPublic.exists()) {
           _rootMusicDirectory = primaryPublic;
           return;
@@ -294,12 +324,18 @@ class MusicStorageService extends ChangeNotifier {
   }
 
   /// Rescan the directory and subfolders
-  Future<void> scanLibrary() async {
+  Future<void> scanLibrary() => _scan();
+
+  /// Escanea la carpeta raíz. Con [quiet] no muestra el estado de carga
+  /// (se usa para refrescar tras recuperar carátulas sin parpadeo).
+  Future<void> _scan({bool quiet = false}) async {
     if (_rootMusicDirectory == null) return;
     final watch = Stopwatch()..start();
-    _isLoading = true;
-    _statusMessage = 'Escaneando carpetas de música...';
-    notifyListeners();
+    if (!quiet) {
+      _isLoading = true;
+      _statusMessage = 'Escaneando carpetas de música...';
+      notifyListeners();
+    }
 
     try {
       if (!_stateStore.isLoaded && !_stateStore.hasInMemoryMutations) {
@@ -365,6 +401,7 @@ class MusicStorageService extends ChangeNotifier {
       _playlists = foundPlaylists;
       _allSongs = foundAllSongs;
       _statusMessage = '';
+      _maybeRecoverCovers(artworkDir);
     } catch (e) {
       debugPrint('Error scanning music library: $e');
       _statusMessage = 'Error al escanear: $e';
@@ -376,6 +413,30 @@ class MusicStorageService extends ChangeNotifier {
       );
       notifyListeners();
     }
+  }
+
+  /// Una vez por sesión: si hay canciones de YouTube (`Título [id].m4a`) sin
+  /// carátula, las vuelve a bajar en segundo plano y refresca la biblioteca.
+  void _maybeRecoverCovers(Directory? artworkDir) {
+    final recoverer = _coverRecoverer;
+    if (recoverer == null || artworkDir == null || _coverRecoveryStarted) {
+      return;
+    }
+    final ids = <String>{};
+    for (final song in _allSongs) {
+      if (song.artworkBytes != null) continue;
+      final id = videoIdFromPath(song.filePath);
+      if (id != null) ids.add(id);
+    }
+    if (ids.isEmpty) return;
+    _coverRecoveryStarted = true;
+    unawaited(() async {
+      final recovered = await recoverer(artworkDir, ids);
+      if (recovered > 0 && !_disposed) {
+        debugPrint('aura: $recovered carátulas recuperadas');
+        await _scan(quiet: true);
+      }
+    }());
   }
 
   Future<List<Song>> _scanSongsInDirectory(

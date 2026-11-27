@@ -2,12 +2,16 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 
 typedef DirectoryProvider = Future<Directory> Function();
 
-const _normalizedMarkerName = '.normalizadas';
+// «-v2»: en las pruebas previas al lanzamiento se marcaron como revisadas
+// carátulas que no se habían recortado; el nombre nuevo hace que todas se
+// revisen una vez más.
+const _normalizedMarkerName = '.normalizadas-v2';
 
 Future<Directory> defaultArtworkDirectory() async =>
     Directory('${(await getApplicationSupportDirectory()).path}/covers');
@@ -103,10 +107,17 @@ bool _isBlackBand(img.Image image, int startY, int endY) {
 }
 
 /// Normaliza en segundo plano las carátulas `*.jpg` de [dir] que aún no figuran
-/// en `<dir>/.normalizadas`, recortando sus franjas negras cuando corresponda.
+/// en `<dir>/.normalizadas-v2`, recortando sus franjas negras cuando corresponda.
 ///
 /// Devuelve cuántos archivos recortó. Nunca lanza: los errores se registran
 /// con [debugPrint] y el archivo original permanece intacto.
+/// [removeLetterbox] en otro isolate. Es una función de nivel superior a
+/// propósito: un cierre creado dentro de otra función arrastra su contexto
+/// (futuros, clientes HTTP, servicios) y `Isolate.run` falla con «object is
+/// unsendable». Aquí el cierre solo captura [bytes].
+Future<Uint8List?> removeLetterboxInBackground(Uint8List bytes) =>
+    Isolate.run(() => removeLetterbox(bytes));
+
 Future<int> normalizeArtworkDirectory(Directory dir) async {
   try {
     if (!await dir.exists()) return 0;
@@ -141,7 +152,7 @@ Future<int> normalizeArtworkDirectory(Directory dir) async {
       final tempFile = File('${item.file.path}.tmp');
       try {
         final bytes = await item.file.readAsBytes();
-        final cropped = await Isolate.run(() => removeLetterbox(bytes));
+        final cropped = await removeLetterboxInBackground(bytes);
         if (cropped != null) {
           await tempFile.writeAsBytes(cropped, flush: true);
           await tempFile.rename(item.file.path);
@@ -172,4 +183,98 @@ Future<int> normalizeArtworkDirectory(Directory dir) async {
     debugPrint('Error normalizando directorio de carátulas ${dir.path}: $e');
     return 0;
   }
+}
+
+const _missingMarkerName = '.sin_caratula';
+
+/// Miniatura de YouTube de un video (480 × 360, con franjas: se recortan).
+Uri youtubeThumbnailUri(String videoId) =>
+    Uri.parse('https://i.ytimg.com/vi/$videoId/hqdefault.jpg');
+
+/// Vuelve a bajar la carátula de las canciones descargadas de YouTube que la
+/// perdieron (las carátulas viven en el almacenamiento privado de la app y se
+/// borran al reinstalar o al borrar sus datos).
+///
+/// Por cada id de [videoIds] sin archivo en [dir] pide la miniatura, le quita
+/// las franjas negras y la guarda. Un 404 se anota en `.sin_caratula` para no
+/// volver a pedirlo; un fallo de red no, así se reintenta en otro escaneo.
+/// Devuelve cuántas recuperó. Nunca lanza.
+Future<int> recoverMissingCovers(
+  Directory dir,
+  Iterable<String> videoIds, {
+  http.Client? client,
+  Duration timeout = const Duration(seconds: 8),
+  int parallel = 6,
+}) async {
+  final ownsClient = client == null;
+  final httpClient = client ?? http.Client();
+  var recovered = 0;
+  try {
+    await dir.create(recursive: true);
+    final missingMarker = File('${dir.path}/$_missingMarkerName');
+    final normalizedMarker = File('${dir.path}/$_normalizedMarkerName');
+    final knownMissing = <String>{};
+    if (await missingMarker.exists()) {
+      for (final line in (await missingMarker.readAsString()).split('\n')) {
+        if (line.trim().isNotEmpty) knownMissing.add(line.trim());
+      }
+    }
+
+    final pending = <String>[];
+    for (final id in videoIds.toSet()) {
+      if (knownMissing.contains(id)) continue;
+      if (await artworkFileFor(dir, id).exists()) continue;
+      pending.add(id);
+    }
+
+    Future<void> recoverOne(String id) async {
+      try {
+        final response = await httpClient
+            .get(youtubeThumbnailUri(id))
+            .timeout(timeout);
+        if (response.statusCode == 404) {
+          await missingMarker.writeAsString('$id\n', mode: FileMode.append);
+          return;
+        }
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+          debugPrint('Carátula $id: HTTP ${response.statusCode}');
+          return;
+        }
+        final bytes = response.bodyBytes;
+        Uint8List toSave = bytes;
+        var checked = false;
+        try {
+          toSave = await removeLetterboxInBackground(bytes) ?? bytes;
+          checked = true;
+        } catch (e) {
+          debugPrint('No se pudo recortar la carátula $id: $e');
+        }
+        final file = artworkFileFor(dir, id);
+        final temp = File('${file.path}.tmp');
+        await temp.writeAsBytes(toSave, flush: true);
+        await temp.rename(file.path);
+        // Solo se marca como revisada si el recorte corrió; si falló, el
+        // próximo escaneo (normalizeArtworkDirectory) lo vuelve a intentar.
+        if (checked) {
+          await normalizedMarker.writeAsString(
+            '$id.jpg\n',
+            mode: FileMode.append,
+          );
+        }
+        recovered++;
+      } catch (e) {
+        debugPrint('No se pudo recuperar la carátula $id: $e');
+      }
+    }
+
+    for (var i = 0; i < pending.length; i += parallel) {
+      final end = i + parallel < pending.length ? i + parallel : pending.length;
+      await Future.wait(pending.sublist(i, end).map(recoverOne));
+    }
+  } catch (e) {
+    debugPrint('Error recuperando carátulas en ${dir.path}: $e');
+  } finally {
+    if (ownsClient) httpClient.close();
+  }
+  return recovered;
 }

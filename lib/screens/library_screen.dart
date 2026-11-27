@@ -62,7 +62,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ],
                 ),
               ),
-              if (widget.onCreatePlaylist != null)
+              // Solo en Playlists: en Canciones taparía el menú de las filas.
+              if (widget.onCreatePlaylist != null && _selectedSection == 0)
                 Positioned(
                   right: AppTheme.pagePadding,
                   bottom: widget.bottomInset + AppTheme.space16,

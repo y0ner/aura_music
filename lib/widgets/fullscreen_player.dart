@@ -340,6 +340,12 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
   }
 
   Widget _buildActionPills(BuildContext context, Song song) {
+    // El Me gusta vive en MusicStorageService. El reproductor solo se
+    // redibuja con cambios de PlayerService, así que hay que escucharlo aquí
+    // o el icono no cambia al tocarlo.
+    final isFavorite = context.select<MusicStorageService, bool>(
+      (_) => song.isFavorite,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppTheme.space24,
@@ -350,7 +356,7 @@ class _FullscreenPlayerState extends State<FullscreenPlayer> {
       child: Row(
         children: [
           _buildPillButton(
-            icon: song.isFavorite ? Icons.thumb_up : Icons.thumb_up_outlined,
+            icon: isFavorite ? Icons.thumb_up : Icons.thumb_up_outlined,
             label: 'Me gusta',
             onTap: () =>
                 context.read<MusicStorageService>().toggleFavorite(song),
