@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lost likes on restart:** Persisted favorites, play counts, play timestamps, and recent searches atomically in `library_state.json` so *Liked Music* survives app restarts.
 - **«Artista desconocido» in the UI:** Removed unknown-artist fallback labels from player, mini player, tiles, and home cards using `song.hasKnownArtist` and parsed filename artists.
 - **Playback CPU performance:** Reduced CPU usage while playing audio from 86% to ~13–24% by isolating position updates in `ValueListenable`, caching derived playlists, scanning tags/covers in a background isolate, decoding covers at display size, and removing redundant per-second `MediaSession` broadcasts.
+- **Lost covers after reinstalling:** Covers of songs downloaded from YouTube live in the app's private storage and were lost when reinstalling or clearing data. Aura now fetches the missing thumbnails once, using the video ID in the file name, and refreshes the library.
 - **Like button in the player:** The *Me gusta* icon now updates the moment you tap it (it used to wait for the next player event).
 - **«Nueva playlist» button over the song list:** It now only shows in the *Playlists* view, so it no longer covers the song menus.
 - **Duplicate songs in auto playlists:** Deduplicated repeated tracks (by YouTube video ID across folders) in *Recently Played*, *Most Played*, and *Recently Added* lists.

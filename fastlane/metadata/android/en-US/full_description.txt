@@ -15,7 +15,7 @@ Features:
 • Filename parsing: Extracts artist and title from filenames like "Artist - Title (Official Video) ft. X" when tags are missing.
 
 Privacy:
-No accounts, no ads, and no analytics. Network access is used only when you paste a YouTube link or look up lyrics on LRCLIB.
+No accounts, no ads, and no analytics. Network access is used only when you paste a YouTube link, look up lyrics on LRCLIB, or restore the missing cover of a song downloaded from YouTube.
 
 Disclaimer:
 Aura Music is not affiliated with YouTube or Google. Users are responsible for downloading only content they have the right to save under YouTube's Terms of Service.

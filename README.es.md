@@ -158,13 +158,13 @@ SHA-256: A7:79:B5:5E:1E:05:3B:A6:13:A0:A2:24:A6:18:EF:61:9D:BD:A0:62:76:26:5B:3A
 
 - **Sin cuenta, sin anuncios, sin rastreo ni analíticas.** Aura Music funciona sin conexión con tu música local.
 - **Datos solo en tu dispositivo:** Favoritos, historial de reproducción, búsquedas recientes, carátulas recortadas y letras en caché se guardan localmente en el dispositivo.
-- **Red bajo demanda:** La app solo se conecta a internet cuando pegas un enlace de YouTube para descargarlo o cuando busca una letra faltante en LRCLIB.
+- **Red bajo demanda:** La app solo se conecta a internet cuando pegas un enlace de YouTube para descargarlo, cuando busca una letra faltante en LRCLIB o cuando recupera la carátula perdida de una canción descargada de YouTube (pide una sola vez la miniatura a `i.ytimg.com` con el id del video que lleva el nombre del archivo).
 
 ### Permisos en Android
 
 | Permiso | Para qué se usa |
 | :--- | :--- |
-| `INTERNET` | Descargar audio desde los enlaces de YouTube que pegue el usuario y consultar letras en LRCLIB. |
+| `INTERNET` | Descargar audio desde los enlaces de YouTube que pegue el usuario, consultar letras en LRCLIB y recuperar carátulas perdidas de canciones descargadas. |
 | `READ_MEDIA_AUDIO` / `READ_EXTERNAL_STORAGE` | Leer las carpetas y archivos de música locales. |
 | `WRITE_EXTERNAL_STORAGE` | Guardar descargas en versiones antiguas de Android. |
 | `MANAGE_EXTERNAL_STORAGE` | Declarado para poder usar carpetas fuera de `Music/`; **no** se solicita automáticamente. |

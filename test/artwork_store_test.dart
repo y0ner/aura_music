@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:aura_music/services/artwork_store.dart';
 import 'package:aura_music/services/storage_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:image/image.dart' as img;
 
 Uint8List _makeJpg({
@@ -315,5 +317,79 @@ void main() {
         expect(await normalizeArtworkDirectory(dir), 0);
       },
     );
+  });
+
+  group('recoverMissingCovers', () {
+    late Directory dir;
+
+    setUp(() async {
+      dir = await Directory.systemTemp.createTemp('aura_recover_');
+    });
+
+    tearDown(() async {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    });
+
+    test('baja la miniatura, le quita las franjas y no repite lo que ya está',
+        () async {
+      final requested = <String>[];
+      final thumbnail = _makeJpg(
+        width: 480,
+        height: 360,
+        background: img.ColorRgb8(0, 0, 0),
+        rects: [(x1: 0, y1: 45, x2: 479, y2: 314, color: img.ColorRgb8(40, 160, 220))],
+      );
+      final client = MockClient((request) async {
+        requested.add(request.url.toString());
+        if (request.url.path.contains('missingId01')) {
+          return http.Response('', 404);
+        }
+        return http.Response.bytes(thumbnail, 200);
+      });
+      await File('${dir.path}/yaExisteId1.jpg').writeAsBytes([1, 2, 3]);
+
+      final recovered = await recoverMissingCovers(
+        dir,
+        ['abcdefghijk', 'missingId01', 'yaExisteId1'],
+        client: client,
+      );
+
+      expect(recovered, 1);
+      expect(requested, hasLength(2));
+      expect(
+        requested,
+        contains('https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg'),
+      );
+      final saved = img.decodeImage(
+        await File('${dir.path}/abcdefghijk.jpg').readAsBytes(),
+      )!;
+      expect(saved.width, 480);
+      expect(saved.height, 270);
+
+      // Segunda pasada: el 404 quedó anotado y la recuperada ya existe.
+      requested.clear();
+      expect(
+        await recoverMissingCovers(
+          dir,
+          ['abcdefghijk', 'missingId01'],
+          client: client,
+        ),
+        0,
+      );
+      expect(requested, isEmpty);
+    });
+
+    test('un fallo de red no se anota: se reintenta en el siguiente escaneo',
+        () async {
+      var calls = 0;
+      final client = MockClient((request) async {
+        calls++;
+        throw const SocketException('sin red');
+      });
+      expect(await recoverMissingCovers(dir, ['abcdefghijk'], client: client), 0);
+      expect(await recoverMissingCovers(dir, ['abcdefghijk'], client: client), 0);
+      expect(calls, 2);
+      expect(await File('${dir.path}/abcdefghijk.jpg').exists(), isFalse);
+    });
   });
 }

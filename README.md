@@ -159,13 +159,13 @@ SHA-256: A7:79:B5:5E:1E:05:3B:A6:13:A0:A2:24:A6:18:EF:61:9D:BD:A0:62:76:26:5B:3A
 
 - **No accounts, no ads, no tracking, no analytics.** Aura Music works entirely offline with your local audio files.
 - **Local persistence only:** Liked tracks, play counts, recent searches, cropped cover art, and cached lyrics remain stored on your device.
-- **On-demand network access:** Network requests happen only when you paste a YouTube link in the **Add** tab or when looking up missing lyrics from LRCLIB.
+- **On-demand network access:** Network requests happen only when you paste a YouTube link in the **Add** tab, when looking up missing lyrics from LRCLIB, or when restoring the missing cover of a song downloaded from YouTube (the thumbnail is fetched once from `i.ytimg.com` using the video ID in the file name).
 
 ### Android permissions
 
 | Permission | Purpose |
 | :--- | :--- |
-| `INTERNET` | Download audio from user-provided YouTube links and fetch lyrics from LRCLIB. |
+| `INTERNET` | Download audio from user-provided YouTube links, fetch lyrics from LRCLIB and restore missing covers of downloaded songs. |
 | `READ_MEDIA_AUDIO` / `READ_EXTERNAL_STORAGE` | Scan and read local music folders on Android. |
 | `WRITE_EXTERNAL_STORAGE` | Save downloaded tracks on older Android versions. |
 | `MANAGE_EXTERNAL_STORAGE` | Declared so you can select folders outside `Music/`; **not** requested automatically. |

@@ -15,7 +15,7 @@ Funciones principales:
 • Artista desde el archivo: Extrae artista y título de nombres como «Artista - Título (Official Video) ft. X» cuando el archivo no trae etiquetas.
 
 Privacidad:
-Sin cuentas, sin anuncios ni analíticas. La red solo se usa al descargar un enlace de YouTube o buscar letras en LRCLIB.
+Sin cuentas, sin anuncios ni analíticas. La red solo se usa al descargar un enlace de YouTube, al buscar letras en LRCLIB o al recuperar la carátula perdida de una canción descargada de YouTube.
 
 Aviso:
 Aura Music no está afiliada a YouTube ni a Google. El usuario es responsable de descargar únicamente contenido que tenga derecho a guardar.
